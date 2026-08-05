@@ -2979,3 +2979,67 @@ svg {
     grid-template-columns: 1fr;
   }
 }
+
+.delivery-receipt{
+
+background:#fff;
+
+border:2px dashed #16a34a;
+
+border-radius:18px;
+
+padding:24px;
+
+display:flex;
+
+flex-direction:column;
+
+gap:14px;
+
+}
+
+.delivery-receipt h3{
+
+margin:0;
+
+font-size:25px;
+
+text-align:center;
+
+color:#166534;
+
+}
+
+.delivery-receipt-row{
+
+display:flex;
+
+justify-content:space-between;
+
+gap:20px;
+
+padding:10px 0;
+
+border-bottom:1px dashed #ddd;
+
+}
+
+.delivery-receipt strong{
+
+color:#111827;
+
+}
+
+.delivery-receipt-total{
+
+font-size:26px;
+
+font-weight:700;
+
+color:#16a34a;
+
+text-align:center;
+
+margin-top:15px;
+
+}

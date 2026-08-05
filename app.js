@@ -293,7 +293,7 @@ function mostrarDashboard(usuario) {
 
         </header>
 
-        <section id="pageContent"></section>
+              <section id="pageContent"></section>
 
       </main>
 
@@ -504,6 +504,8 @@ function mostrarDashboard(usuario) {
 
     </div>
   `;
+
+
 
 
   document
@@ -1298,8 +1300,11 @@ function mostrarInicio(
   titulo.textContent = "Inicio";
 
   const activos = prestamos.filter(function (prestamo) {
-    return prestamo.status === "activo";
-  });
+   return [
+     "activo",
+     "pagado_pendiente_recibo"
+   ].includes(prestamo.status);
+ });
 
   const dineroEnLaCalle = activos.reduce(function (t, p) {
     return t + Number(p.pendingAmount || 0);
@@ -1697,6 +1702,9 @@ function crearClientesPorCobrar() {
         total > 0
           ? Math.round((pagado / total) * 100)
           : 0;
+
+          const pendienteRecibo =
+            prestamo.status === "pagado_pendiente_recibo";
 
       return `
         <article class="today-client-card">
@@ -3739,7 +3747,11 @@ async function cargarPrestamosDelivery() {
             </h3>
 
             <span class="loan-status">
-              Activo
+              ${
+                pendienteRecibo
+                  ? "Pagado — recibo disponible"
+                  : "Activo"
+              }
             </span>
 
           </div>
@@ -3760,15 +3772,29 @@ async function cargarPrestamosDelivery() {
 
       </div>
 
+      ${
+  pendienteRecibo
+    ? `
+      <button
+        type="button"
+        class="delivery-pay-button"
+        onclick="abrirComprobanteDelivery('${prestamo.id}')"
+      >
+        <i data-lucide="receipt-text"></i>
+        <span>Ver comprobante</span>
+      </button>
+    `
+    : `
       <button
         type="button"
         class="delivery-pay-button"
         onclick="abrirModalPagoDelivery('${prestamo.id}')"
       >
         <i data-lucide="hand-coins"></i>
-
         <span>Registrar pago</span>
       </button>
+    `
+}
 
     </div>
 
@@ -4072,13 +4098,23 @@ lote.update(
 
     status:
       prestamoCompletado
-        ? "terminado"
-        : "activo",
+    ? "pagado_pendiente_recibo"
+    : "activo",
+
+    paidAt:
+      prestamoCompletado
+    ? firebase.firestore.FieldValue.serverTimestamp()
+    : null,
+
+    receiptAvailableUntil:
+      prestamoCompletado
+    ? firebase.firestore.Timestamp.fromMillis(
+        Date.now() + 10 * 60 * 1000
+      )
+    : null,
 
     completedAt:
-      prestamoCompletado
-        ? firebase.firestore.FieldValue.serverTimestamp()
-        : null,
+      null,
 
     lastPaymentDate:
       firebase.firestore.FieldValue.serverTimestamp()
