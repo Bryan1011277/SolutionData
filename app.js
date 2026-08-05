@@ -1706,6 +1706,9 @@ function crearClientesPorCobrar() {
           const pendienteRecibo =
             prestamo.status === "pagado_pendiente_recibo";
 
+            const tieneRecibo =
+              Boolean(prestamo.lastPaymentId);
+
       return `
         <article class="today-client-card">
 
@@ -3496,115 +3499,98 @@ function mostrarPanelDelivery(usuario) {
 
       </div>
 
-    </form>
+        </form>
 
   </section>
 </div>
 
-      <section class="loan-modal-card">
 
-        <div class="loan-modal-header">
+<div
+  id="deliveryReceiptModal"
+  class="loan-modal hidden"
+>
 
-          <div>
-            <span class="section-label">
-              Nuevo cobro
-            </span>
+  <section class="delivery-payment-modal-card">
 
-            <h2>Registrar pago</h2>
-          </div>
+    <div class="delivery-payment-header">
 
-          <button
-            type="button"
-            id="closeDeliveryPaymentModal"
-            class="close-modal-button"
-          >
-            ×
-          </button>
+      <div class="delivery-payment-icon">
+        <i data-lucide="receipt-text"></i>
+      </div>
 
-        </div>
+      <div>
+        <span class="section-label">
+          Comprobante de pago
+        </span>
 
-        <form id="deliveryPaymentForm">
+        <h2>Recibo del cliente</h2>
 
-          <input
-            type="hidden"
-            id="deliveryPaymentLoanId"
-          />
+        <p>
+          Revisa los datos antes de enviarlo.
+        </p>
+      </div>
 
-          <div class="loan-form-grid">
+      <button
+        type="button"
+        id="closeDeliveryReceiptModal"
+        class="close-modal-button"
+      >
+        ×
+      </button>
 
-            <label>
-              Cliente
-
-              <input
-                type="text"
-                id="deliveryPaymentClient"
-                readonly
-              />
-            </label>
-
-            <label>
-              Saldo pendiente
-
-              <input
-                type="text"
-                id="deliveryPaymentPending"
-                readonly
-              />
-            </label>
-
-            <label>
-              Cuota sugerida
-
-              <input
-                type="text"
-                id="deliveryPaymentSuggested"
-                readonly
-              />
-            </label>
-
-            <label>
-              Monto recibido
-
-              <input
-                type="number"
-                id="deliveryPaymentAmount"
-                min="1"
-                step="0.01"
-                required
-              />
-            </label>
-
-          </div>
-
-          <p
-            id="deliveryPaymentMessage"
-            class="message"
-          ></p>
-
-          <div class="loan-form-actions">
-
-            <button
-              type="button"
-              id="cancelDeliveryPaymentButton"
-              class="secondary-button"
-            >
-              Cancelar
-            </button>
-
-            <button
-              type="submit"
-              id="saveDeliveryPaymentButton"
-              class="primary-button"
-            >
-              Aplicar pago
-            </button>
-
-          </div>
-
-        </form>
-
-      </section>
     </div>
+
+
+    <div
+      id="deliveryReceiptContent"
+      class="delivery-receipt"
+    >
+      <p>
+        Cargando comprobante...
+      </p>
+    </div>
+
+
+    <p
+      id="deliveryReceiptMessage"
+      class="message"
+    ></p>
+
+
+    <div class="delivery-payment-actions">
+
+  <button
+    type="button"
+    id="cancelDeliveryReceiptButton"
+    class="secondary-button"
+  >
+    Cerrar
+  </button>
+
+  <button
+    type="button"
+    id="completeDeliveryLoanButton"
+    class="secondary-button hidden"
+  >
+    <i data-lucide="circle-check-big"></i>
+    Marcar como completado
+  </button>
+
+  <button
+    type="button"
+    id="sendDeliveryReceiptButton"
+    class="primary-button"
+  >
+    <i data-lucide="send"></i>
+    Enviar recibo
+  </button>
+
+</div>
+
+  </section>
+
+</div>
+
   `;
 
   document
@@ -3658,6 +3644,42 @@ document
     guardarPagoDelivery
   );
 
+  document
+  .getElementById(
+    "closeDeliveryReceiptModal"
+  )
+  .addEventListener(
+    "click",
+    cerrarComprobanteDelivery
+  );
+
+  document
+  .getElementById(
+    "cancelDeliveryReceiptButton"
+  )
+  .addEventListener(
+    "click",
+    cerrarComprobanteDelivery
+  );
+
+  document
+  .getElementById(
+    "sendDeliveryReceiptButton"
+  )
+  .addEventListener(
+    "click",
+    enviarComprobanteWhatsApp
+  );
+
+  document
+  .getElementById(
+    "completeDeliveryLoanButton"
+  )
+  .addEventListener(
+    "click",
+    marcarPrestamoDeliveryCompletado
+  );
+
   if (window.lucide) {
     lucide.createIcons();
   }
@@ -3690,7 +3712,10 @@ async function cargarPrestamosDelivery() {
           };
         })
         .filter(function (prestamo) {
-          return prestamo.status === "activo";
+          return [
+            "activo",
+            "pagado_pendiente_recibo"
+          ].includes(prestamo.status);
         });
 
     if (!prestamosDelivery.length) {
@@ -3726,6 +3751,9 @@ async function cargarPrestamosDelivery() {
             total > 0
               ? Math.round((pagado / total) * 100)
               : 0;
+
+              const pendienteRecibo =
+                prestamo.status === "pagado_pendiente_recibo";
 
           return `
   <article class="loan-card delivery-client-card">
@@ -3772,29 +3800,39 @@ async function cargarPrestamosDelivery() {
 
       </div>
 
-      ${
-  pendienteRecibo
-    ? `
-      <button
-        type="button"
-        class="delivery-pay-button"
-        onclick="abrirComprobanteDelivery('${prestamo.id}')"
-      >
-        <i data-lucide="receipt-text"></i>
-        <span>Ver comprobante</span>
-      </button>
-    `
-    : `
-      <button
-        type="button"
-        class="delivery-pay-button"
-        onclick="abrirModalPagoDelivery('${prestamo.id}')"
-      >
-        <i data-lucide="hand-coins"></i>
-        <span>Registrar pago</span>
-      </button>
-    `
-}
+      <div class="delivery-client-actions">
+
+  ${
+    tieneRecibo
+      ? `
+        <button
+          type="button"
+          class="delivery-receipt-button"
+          onclick="abrirComprobanteDelivery('${prestamo.id}')"
+        >
+          <i data-lucide="receipt-text"></i>
+          <span>Ver último recibo</span>
+        </button>
+      `
+      : ""
+  }
+
+  ${
+    pendienteRecibo
+      ? ""
+      : `
+        <button
+          type="button"
+          class="delivery-pay-button"
+          onclick="abrirModalPagoDelivery('${prestamo.id}')"
+        >
+          <i data-lucide="hand-coins"></i>
+          <span>Registrar pago</span>
+        </button>
+      `
+  }
+
+</div>
 
     </div>
 
@@ -3993,6 +4031,406 @@ function cerrarModalPagoDelivery() {
 
 }
 
+let comprobanteSeleccionado = null;
+
+
+async function abrirComprobanteDelivery(prestamoId) {
+  const modal =
+    document.getElementById("deliveryReceiptModal");
+
+  const contenido =
+    document.getElementById("deliveryReceiptContent");
+
+  const mensaje =
+    document.getElementById("deliveryReceiptMessage");
+
+  if (!modal || !contenido) {
+    return;
+  }
+
+  contenido.innerHTML = `
+    <p>Cargando comprobante...</p>
+  `;
+
+  mensaje.textContent = "";
+
+  modal.classList.remove("hidden");
+
+  try {
+    const documentoPrestamo = await db
+      .collection("loans")
+      .doc(prestamoId)
+      .get();
+
+    if (!documentoPrestamo.exists) {
+      throw new Error(
+        "No se encontró el préstamo."
+      );
+    }
+
+    const prestamo = {
+      id: documentoPrestamo.id,
+      ...documentoPrestamo.data()
+    };
+
+    const resultadoPagos = await db
+      .collection("payments")
+      .where("loanId", "==", prestamoId)
+      .where(
+        "collectorId",
+        "==",
+        usuarioActual.uid
+      )
+      .get();
+
+    const pagosPrestamo =
+      resultadoPagos.docs
+        .map(function (documento) {
+          return {
+            id: documento.id,
+            ...documento.data()
+          };
+        })
+        .sort(function (a, b) {
+          const fechaA =
+            a.createdAt?.toMillis
+              ? a.createdAt.toMillis()
+              : 0;
+
+          const fechaB =
+            b.createdAt?.toMillis
+              ? b.createdAt.toMillis()
+              : 0;
+
+          return fechaB - fechaA;
+        });
+
+    const ultimoPago =
+      pagosPrestamo[0] || null;
+
+    const fechaPago =
+      ultimoPago?.createdAt?.toDate
+        ? ultimoPago.createdAt.toDate()
+        : new Date();
+
+    const numeroRecibo =
+      ultimoPago?.paymentId
+        ? ultimoPago.paymentId
+            .slice(0, 8)
+            .toUpperCase()
+        : prestamo.id
+            .slice(0, 8)
+            .toUpperCase();
+
+    comprobanteSeleccionado = {
+      prestamo,
+      ultimoPago,
+      numeroRecibo,
+      fechaPago
+    };
+
+    const botonCompletar =
+  document.getElementById(
+    "completeDeliveryLoanButton"
+  );
+
+if (botonCompletar) {
+  const prestamoSaldado =
+    prestamo.status === "pagado_pendiente_recibo"
+    || Number(prestamo.pendingAmount || 0) <= 0;
+
+  botonCompletar.classList.toggle(
+    "hidden",
+    !prestamoSaldado
+  );
+}
+
+    contenido.innerHTML = `
+      <div class="delivery-receipt-header">
+
+        <span>SOLUTIONDATA</span>
+
+        <h3>COMPROBANTE DE PAGO</h3>
+
+        <small>
+          Recibo #${escaparHTML(numeroRecibo)}
+        </small>
+
+      </div>
+
+      <div class="delivery-receipt-row">
+        <span>Cliente</span>
+
+        <strong>
+          ${escaparHTML(
+            prestamo.clientName || "Cliente"
+          )}
+        </strong>
+      </div>
+
+      <div class="delivery-receipt-row">
+        <span>Teléfono</span>
+
+        <strong>
+          ${escaparHTML(
+            prestamo.clientPhone || "No registrado"
+          )}
+        </strong>
+      </div>
+
+      <div class="delivery-receipt-row">
+        <span>Fecha</span>
+
+        <strong>
+          ${fechaPago.toLocaleDateString("es-DO")}
+        </strong>
+      </div>
+
+      <div class="delivery-receipt-row">
+        <span>Hora</span>
+
+        <strong>
+          ${fechaPago.toLocaleTimeString(
+            "es-DO",
+            {
+              hour: "2-digit",
+              minute: "2-digit"
+            }
+          )}
+        </strong>
+      </div>
+
+      <div class="delivery-receipt-row">
+        <span>Último pago</span>
+
+        <strong>
+          ${formatoDinero.format(
+            Number(ultimoPago?.amount || 0)
+          )}
+        </strong>
+      </div>
+
+      <div class="delivery-receipt-row">
+        <span>Total pagado</span>
+
+        <strong>
+          ${formatoDinero.format(
+            Number(prestamo.paidAmount || 0)
+          )}
+        </strong>
+      </div>
+
+      <div class="delivery-receipt-row">
+        <span>Saldo pendiente</span>
+
+        <strong>
+          ${formatoDinero.format(
+            Number(prestamo.pendingAmount || 0)
+          )}
+        </strong>
+      </div>
+
+      <div class="delivery-receipt-row">
+        <span>Mensajero</span>
+
+        <strong>
+          ${escaparHTML(
+            ultimoPago?.collectorName ||
+            prestamo.collectorName ||
+            usuarioActual.email ||
+            "Mensajero"
+          )}
+        </strong>
+      </div>
+
+      <div class="delivery-receipt-total">
+        PRÉSTAMO SALDADO
+      </div>
+    `;
+
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+
+  } catch (error) {
+    console.error(
+      "Error abriendo comprobante:",
+      error
+    );
+
+    contenido.innerHTML = `
+      <p>
+        No se pudo cargar el comprobante.
+      </p>
+    `;
+  }
+}
+
+
+function cerrarComprobanteDelivery() {
+  comprobanteSeleccionado = null;
+
+  const modal =
+    document.getElementById(
+      "deliveryReceiptModal"
+    );
+
+  if (modal) {
+    modal.classList.add("hidden");
+  }
+}
+
+
+function enviarComprobanteWhatsApp() {
+  if (!comprobanteSeleccionado) {
+    return;
+  }
+
+  const {
+    prestamo,
+    ultimoPago,
+    numeroRecibo,
+    fechaPago
+  } = comprobanteSeleccionado;
+
+  const telefono =
+    String(prestamo.clientPhone || "")
+      .replace(/\D/g, "");
+
+  if (!telefono) {
+    const mensaje =
+      document.getElementById(
+        "deliveryReceiptMessage"
+      );
+
+    mensaje.textContent =
+      "El cliente no tiene teléfono registrado.";
+
+    return;
+  }
+
+  const telefonoWhatsApp =
+    telefono.length === 10
+      ? `1${telefono}`
+      : telefono;
+
+  const texto = [
+    "*SOLUTIONDATA*",
+    "*COMPROBANTE DE PAGO*",
+    "",
+    `Recibo: #${numeroRecibo}`,
+    `Cliente: ${prestamo.clientName || "Cliente"}`,
+    `Fecha: ${fechaPago.toLocaleDateString("es-DO")}`,
+    `Último pago: ${formatoDinero.format(
+      Number(ultimoPago?.amount || 0)
+    )}`,
+    `Total pagado: ${formatoDinero.format(
+      Number(prestamo.paidAmount || 0)
+    )}`,
+    "Saldo pendiente: RD$0.00",
+    "",
+    "*ESTADO: PRÉSTAMO SALDADO*",
+    "",
+    "Gracias por su pago."
+  ].join("\n");
+
+  window.open(
+    `https://wa.me/${telefonoWhatsApp}?text=${encodeURIComponent(texto)}`,
+    "_blank"
+  );
+}
+
+async function marcarPrestamoDeliveryCompletado() {
+  if (!comprobanteSeleccionado) {
+    return;
+  }
+
+  const prestamo =
+    comprobanteSeleccionado.prestamo;
+
+  const boton =
+    document.getElementById(
+      "completeDeliveryLoanButton"
+    );
+
+  const mensaje =
+    document.getElementById(
+      "deliveryReceiptMessage"
+    );
+
+  if (Number(prestamo.pendingAmount || 0) > 0) {
+    mensaje.style.color = "#b42318";
+
+    mensaje.textContent =
+      "Este préstamo todavía tiene saldo pendiente.";
+
+    return;
+  }
+
+  const confirmar = confirm(
+    "¿Confirmas que el recibo fue enviado y deseas completar este préstamo?"
+  );
+
+  if (!confirmar) {
+    return;
+  }
+
+  boton.disabled = true;
+  boton.textContent = "Completando...";
+  mensaje.textContent = "";
+
+  try {
+    await db
+      .collection("loans")
+      .doc(prestamo.id)
+      .update({
+        status: "terminado",
+
+        receiptPending: false,
+
+        receiptSent: true,
+
+        receiptSentAt:
+          firebase.firestore.FieldValue.serverTimestamp(),
+
+        completedAt:
+          firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+    mensaje.style.color = "#15803d";
+
+    mensaje.textContent =
+      "Préstamo completado correctamente.";
+
+    cerrarComprobanteDelivery();
+
+    await cargarPrestamosDelivery();
+
+  } catch (error) {
+    console.error(
+      "Error completando préstamo:",
+      error
+    );
+
+    mensaje.style.color = "#b42318";
+
+    mensaje.textContent =
+      "No se pudo completar el préstamo.";
+
+  } finally {
+    boton.disabled = false;
+
+    boton.innerHTML = `
+      <i data-lucide="circle-check-big"></i>
+      Marcar como completado
+    `;
+
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+  }
+}
+
 async function guardarPagoDelivery(event) {
   event.preventDefault();
 
@@ -4107,17 +4545,25 @@ lote.update(
     : null,
 
     receiptAvailableUntil:
-      prestamoCompletado
-    ? firebase.firestore.Timestamp.fromMillis(
-        Date.now() + 10 * 60 * 1000
-      )
-    : null,
+      null,
 
     completedAt:
       null,
 
+    lastPaymentId:
+      referenciaPago.id,
+
+    lastPaymentAmount:
+      monto,
+
     lastPaymentDate:
-      firebase.firestore.FieldValue.serverTimestamp()
+  firebase.firestore.FieldValue.serverTimestamp(),
+
+    receiptPending:
+      true,
+
+    receiptSent:
+      false
   }
 );
 
@@ -4205,6 +4651,295 @@ catch (error) {
 
   if (window.lucide) {
     lucide.createIcons();
+  }
+}
+
+async function cargarHistorialDelivery() {
+  const contenedor =
+    document.getElementById(
+      "deliveryHistoryContainer"
+    );
+
+  if (!contenedor || !usuarioActual) {
+    return;
+  }
+
+  try {
+    const resultado = await db
+      .collection("payments")
+      .where(
+        "collectorId",
+        "==",
+        usuarioActual.uid
+      )
+      .get();
+
+    const historial =
+      resultado.docs
+        .map(function (documento) {
+          return {
+            id: documento.id,
+            ...documento.data()
+          };
+        })
+        .sort(function (a, b) {
+          const fechaA =
+            a.createdAt?.toMillis
+              ? a.createdAt.toMillis()
+              : 0;
+
+          const fechaB =
+            b.createdAt?.toMillis
+              ? b.createdAt.toMillis()
+              : 0;
+
+          return fechaB - fechaA;
+        });
+
+    if (!historial.length) {
+      contenedor.innerHTML = `
+        <div class="empty-state">
+
+          <h3>Sin movimientos</h3>
+
+          <p>
+            Los pagos registrados aparecerán aquí.
+          </p>
+
+        </div>
+      `;
+
+      return;
+    }
+
+    contenedor.innerHTML =
+      historial
+        .map(function (pago) {
+          const fecha =
+            pago.createdAt?.toDate
+              ? pago.createdAt.toDate()
+              : null;
+
+          const completado =
+            pago.loanCompleted === true;
+
+          return `
+            <article class="delivery-history-item">
+
+              <div class="delivery-history-icon">
+                <i data-lucide="${
+                  completado
+                    ? "circle-check-big"
+                    : "hand-coins"
+                }"></i>
+              </div>
+
+              <div class="delivery-history-information">
+
+                <div class="delivery-history-title">
+
+                  <strong>
+                    ${escaparHTML(
+                      pago.clientName || "Cliente"
+                    )}
+                  </strong>
+
+                  <span class="${
+                    completado
+                      ? "history-status completed"
+                      : "history-status partial"
+                  }">
+                    ${
+                      completado
+                        ? "Préstamo saldado"
+                        : "Cuota pagada"
+                    }
+                  </span>
+
+                </div>
+
+                <p>
+                  Pago recibido:
+                  <strong>
+                    ${formatoDinero.format(
+                      Number(pago.amount || 0)
+                    )}
+                  </strong>
+                </p>
+
+                <small>
+                  Saldo anterior:
+                  ${formatoDinero.format(
+                    Number(pago.previousBalance || 0)
+                  )}
+
+                  · Saldo restante:
+                  ${formatoDinero.format(
+                    Number(pago.newBalance || 0)
+                  )}
+                </small>
+
+                <small>
+                  ${
+                    fecha
+                      ? `${fecha.toLocaleDateString(
+                          "es-DO"
+                        )} · ${fecha.toLocaleTimeString(
+                          "es-DO",
+                          {
+                            hour: "2-digit",
+                            minute: "2-digit"
+                          }
+                        )}`
+                      : "Fecha pendiente"
+                  }
+                </small>
+
+              </div>
+
+              <button
+                type="button"
+                class="history-receipt-button"
+                onclick="abrirReciboPagoDelivery(
+                  '${pago.id}',
+                  '${pago.loanId}'
+                )"
+              >
+                <i data-lucide="receipt-text"></i>
+                Ver recibo
+              </button>
+
+            </article>
+          `;
+        })
+        .join("");
+
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+
+  } catch (error) {
+    console.error(
+      "Error cargando historial:",
+      error
+    );
+
+    contenedor.innerHTML = `
+      <div class="empty-state">
+
+        <h3>No se pudo cargar el historial</h3>
+
+        <p>
+          Intenta nuevamente.
+        </p>
+
+      </div>
+    `;
+  }
+}
+
+async function eliminarHistorialDelivery() {
+  if (!usuarioActual) {
+    return;
+  }
+
+  const confirmar = confirm(
+    "¿Deseas eliminar todo tu historial de cobros? Esta acción no se puede deshacer."
+  );
+
+  if (!confirmar) {
+    return;
+  }
+
+  const segundaConfirmacion = confirm(
+    "Confirma nuevamente: todos tus recibos y movimientos serán eliminados permanentemente."
+  );
+
+  if (!segundaConfirmacion) {
+    return;
+  }
+
+  const boton =
+    document.getElementById(
+      "deleteDeliveryHistoryButton"
+    );
+
+  if (boton) {
+    boton.disabled = true;
+    boton.textContent = "Eliminando...";
+  }
+
+  try {
+    const resultado = await db
+      .collection("payments")
+      .where(
+        "collectorId",
+        "==",
+        usuarioActual.uid
+      )
+      .get();
+
+    if (resultado.empty) {
+      alert(
+        "No tienes movimientos para eliminar."
+      );
+
+      return;
+    }
+
+    const documentos =
+      resultado.docs;
+
+    const limiteLote = 450;
+
+    for (
+      let inicio = 0;
+      inicio < documentos.length;
+      inicio += limiteLote
+    ) {
+      const lote = db.batch();
+
+      documentos
+        .slice(
+          inicio,
+          inicio + limiteLote
+        )
+        .forEach(function (documento) {
+          lote.delete(documento.ref);
+        });
+
+      await lote.commit();
+    }
+
+    alert(
+      "Historial eliminado correctamente."
+    );
+
+    await cargarHistorialDelivery();
+
+  } catch (error) {
+    console.error(
+      "Error eliminando historial:",
+      error
+    );
+
+    alert(
+      "No se pudo eliminar el historial."
+    );
+
+  } finally {
+    if (boton) {
+      boton.disabled = false;
+
+      boton.innerHTML = `
+        <i data-lucide="trash-2"></i>
+        Eliminar historial
+      `;
+    }
+
+    if (window.lucide) {
+      lucide.createIcons();
+    }
   }
 }
 
@@ -4304,28 +5039,273 @@ function abrirPantallaDelivery(pagina) {
 }
 
   if (pagina === "historial") {
-    titulo.textContent = "Historial";
+  titulo.textContent = "Historial";
+
+  contenido.innerHTML = `
+    <section class="content-card">
+
+      <div class="card-header">
+
+  <div>
+    <span class="section-label">
+      Actividad de cobros
+    </span>
+
+    <h2>Historial de pagos</h2>
+
+    <p>
+      Cuotas y préstamos saldados por el mensajero.
+    </p>
+  </div>
+
+  <button
+    type="button"
+    id="deleteDeliveryHistoryButton"
+    class="loan-action-button danger"
+  >
+    <i data-lucide="trash-2"></i>
+    Eliminar historial
+  </button>
+
+</div>
+
+      <div
+        id="deliveryHistoryContainer"
+        class="delivery-history-list"
+      >
+        <div class="empty-state">
+          <h3>Cargando actividad...</h3>
+        </div>
+      </div>
+
+    </section>
+  `;
+
+  cargarHistorialDelivery();
+
+  document
+  .getElementById(
+    "deleteDeliveryHistoryButton"
+  )
+  .addEventListener(
+    "click",
+    eliminarHistorialDelivery
+  );
+
+  async function abrirReciboPagoDelivery(
+  paymentId,
+  loanId
+) {
+  const modal =
+    document.getElementById(
+      "deliveryReceiptModal"
+    );
+
+  const contenido =
+    document.getElementById(
+      "deliveryReceiptContent"
+    );
+
+  const mensaje =
+    document.getElementById(
+      "deliveryReceiptMessage"
+    );
+
+  if (!modal || !contenido) {
+    return;
+  }
+
+  contenido.innerHTML = `
+    <p>Cargando recibo...</p>
+  `;
+
+  mensaje.textContent = "";
+  modal.classList.remove("hidden");
+
+  try {
+    const pagoDoc = await db
+      .collection("payments")
+      .doc(paymentId)
+      .get();
+
+    const prestamoDoc = await db
+      .collection("loans")
+      .doc(loanId)
+      .get();
+
+    if (
+      !pagoDoc.exists ||
+      !prestamoDoc.exists
+    ) {
+      throw new Error(
+        "No se encontró el recibo."
+      );
+    }
+
+    const pago = {
+      id: pagoDoc.id,
+      ...pagoDoc.data()
+    };
+
+    const prestamo = {
+      id: prestamoDoc.id,
+      ...prestamoDoc.data()
+    };
+
+    const fechaPago =
+      pago.createdAt?.toDate
+        ? pago.createdAt.toDate()
+        : new Date();
+
+    const numeroRecibo =
+      String(
+        pago.paymentId || pago.id
+      )
+        .slice(0, 8)
+        .toUpperCase();
+
+    comprobanteSeleccionado = {
+      prestamo,
+      ultimoPago: pago,
+      numeroRecibo,
+      fechaPago
+    };
+
+    const botonCompletar =
+      document.getElementById(
+        "completeDeliveryLoanButton"
+      );
+
+    if (botonCompletar) {
+      const esPagoFinal =
+        pago.loanCompleted === true &&
+        Number(pago.newBalance || 0) <= 0 &&
+        prestamo.status ===
+          "pagado_pendiente_recibo";
+
+      botonCompletar.classList.toggle(
+        "hidden",
+        !esPagoFinal
+      );
+    }
 
     contenido.innerHTML = `
-      <section class="content-card">
+      <div class="delivery-receipt-header">
 
-        <span class="section-label">
-          Movimientos
-        </span>
+        <span>SOLUTIONDATA</span>
 
-        <h2>Historial de cobros</h2>
+        <h3>COMPROBANTE DE PAGO</h3>
 
-        <div class="empty-state">
-          <h3>Sin movimientos</h3>
+        <small>
+          Recibo #${escaparHTML(numeroRecibo)}
+        </small>
 
-          <p>
-            Aquí aparecerán todos los pagos registrados.
-          </p>
-        </div>
+      </div>
 
-      </section>
+      <div class="delivery-receipt-row">
+        <span>Cliente</span>
+
+        <strong>
+          ${escaparHTML(
+            pago.clientName ||
+            prestamo.clientName ||
+            "Cliente"
+          )}
+        </strong>
+      </div>
+
+      <div class="delivery-receipt-row">
+        <span>Fecha</span>
+
+        <strong>
+          ${fechaPago.toLocaleDateString("es-DO")}
+        </strong>
+      </div>
+
+      <div class="delivery-receipt-row">
+        <span>Hora</span>
+
+        <strong>
+          ${fechaPago.toLocaleTimeString(
+            "es-DO",
+            {
+              hour: "2-digit",
+              minute: "2-digit"
+            }
+          )}
+        </strong>
+      </div>
+
+      <div class="delivery-receipt-row">
+        <span>Monto recibido</span>
+
+        <strong>
+          ${formatoDinero.format(
+            Number(pago.amount || 0)
+          )}
+        </strong>
+      </div>
+
+      <div class="delivery-receipt-row">
+        <span>Saldo anterior</span>
+
+        <strong>
+          ${formatoDinero.format(
+            Number(pago.previousBalance || 0)
+          )}
+        </strong>
+      </div>
+
+      <div class="delivery-receipt-row">
+        <span>Saldo restante</span>
+
+        <strong>
+          ${formatoDinero.format(
+            Number(pago.newBalance || 0)
+          )}
+        </strong>
+      </div>
+
+      <div class="delivery-receipt-row">
+        <span>Mensajero</span>
+
+        <strong>
+          ${escaparHTML(
+            pago.collectorName ||
+            prestamo.collectorName ||
+            "Mensajero"
+          )}
+        </strong>
+      </div>
+
+      <div class="delivery-receipt-total">
+        ${
+          pago.loanCompleted === true
+            ? "PRÉSTAMO SALDADO"
+            : "PAGO APLICADO"
+        }
+      </div>
+    `;
+
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+
+  } catch (error) {
+    console.error(
+      "Error abriendo recibo:",
+      error
+    );
+
+    contenido.innerHTML = `
+      <p>
+        No se pudo cargar el recibo.
+      </p>
     `;
   }
+}
+
+}
 
   if (pagina === "sueldo") {
     titulo.textContent = "Mi sueldo";
