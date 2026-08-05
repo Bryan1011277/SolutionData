@@ -2904,6 +2904,46 @@ async function editarMensajero(mensajeroId) {
   }
 }
 
+async function eliminarMensajero(mensajeroId) {
+  const confirmar = confirm(
+    "¿Deseas eliminar este mensajero?"
+  );
+
+  if (!confirmar) {
+    return;
+  }
+
+  const segundaConfirmacion = confirm(
+    "Confirma nuevamente: este mensajero será eliminado."
+  );
+
+  if (!segundaConfirmacion) {
+    return;
+  }
+
+  try {
+    await db
+      .collection("messengers")
+      .doc(mensajeroId)
+      .delete();
+
+    await cargarMensajeros();
+
+    alert(
+      "Mensajero eliminado correctamente."
+    );
+
+  } catch (error) {
+    console.error(
+      "Error eliminando mensajero:",
+      error
+    );
+
+    alert(
+      "No se pudo eliminar el mensajero."
+    );
+  }
+}
 
 function cerrarModalMensajero() {
   const modal =
