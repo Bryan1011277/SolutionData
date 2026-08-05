@@ -3224,26 +3224,6 @@ async function cargarMensajeros() {
 
               </div>
 
-              <div class="messenger-actions">
-
-                <button
-                  type="button"
-                  class="loan-action-button"
-                  onclick="editarMensajero('${mensajero.id}')"
-                >
-                  Editar
-                </button>
-
-                <button
-                  type="button"
-                  class="loan-action-button danger"
-                  onclick="eliminarMensajero('${mensajero.id}')"
-                >
-                  Eliminar
-                </button>
-
-              </div>
-
             </article>
           `;
         })
