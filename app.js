@@ -3302,29 +3302,453 @@ function mostrarPagos(
   titulo.textContent = "Pagos";
 
   contenido.innerHTML = `
-    <section class="content-card">
+    <section class="content-card payroll-page">
 
-      <span class="section-label">
-        Nómina
-      </span>
+      <div class="card-header">
 
-      <h2>Pagos de mensajeros</h2>
+        <div>
 
-      <div class="empty-state">
+          <span class="section-label">
+            Nómina
+          </span>
 
-        <h3>No hay pagos registrados</h3>
+          <h2>
+            Pagos de mensajeros
+          </h2>
 
-        <p>
-          Aquí aparecerán el sueldo fijo,
-          las comisiones y los recibos.
-        </p>
+          <p>
+            Revisa los cobros, sueldo y comisión
+            generada por cada mensajero.
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <section class="payroll-period-section">
+
+        <div>
+
+          <label>
+            Desde
+
+            <input
+              type="date"
+              id="payrollStartDate"
+            />
+          </label>
+
+          <label>
+            Hasta
+
+            <input
+              type="date"
+              id="payrollEndDate"
+            />
+          </label>
+
+        </div>
+
+        <button
+          type="button"
+          id="calculatePayrollButton"
+          class="primary-button"
+        >
+          <i data-lucide="calculator"></i>
+          Calcular pagos
+        </button>
+
+      </section>
+
+
+      <div
+        id="messengerPayrollContainer"
+        class="messenger-payroll-grid"
+      >
+
+        <div class="empty-state">
+
+          <h3>Cargando mensajeros...</h3>
+
+          <p>
+            Estamos preparando la información
+            de pagos y comisiones.
+          </p>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <section class="content-card payroll-history-section">
+
+      <div class="card-header">
+
+        <div>
+
+          <span class="section-label">
+            Historial
+          </span>
+
+          <h2>
+            Pagos realizados
+          </h2>
+
+          <p>
+            Busca los pagos por mensajero o fecha.
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div class="payroll-history-filters">
+
+        <input
+          type="search"
+          id="payrollHistorySearch"
+          class="search-input"
+          placeholder="Buscar mensajero..."
+        />
+
+        <input
+          type="date"
+          id="payrollHistoryDate"
+        />
+
+      </div>
+
+
+      <div
+        id="payrollHistoryContainer"
+        class="payroll-history-list"
+      >
+
+        <div class="empty-state">
+
+          <h3>Cargando historial...</h3>
+
+        </div>
 
       </div>
 
     </section>
   `;
+
+
+  const fechaActual =
+    new Date();
+
+  const inicioMes =
+    new Date(
+      fechaActual.getFullYear(),
+      fechaActual.getMonth(),
+      1
+    );
+
+  document.getElementById(
+    "payrollStartDate"
+  ).value =
+    inicioMes
+      .toISOString()
+      .split("T")[0];
+
+  document.getElementById(
+    "payrollEndDate"
+  ).value =
+    fechaActual
+      .toISOString()
+      .split("T")[0];
+
+
+  document
+    .getElementById(
+      "calculatePayrollButton"
+    )
+    .addEventListener(
+      "click",
+      cargarPanelPagosMensajeros
+    );
+
+
+  document
+    .getElementById(
+      "payrollHistorySearch"
+    )
+    .addEventListener(
+      "input",
+      filtrarHistorialNomina
+    );
+
+
+  document
+    .getElementById(
+      "payrollHistoryDate"
+    )
+    .addEventListener(
+      "change",
+      filtrarHistorialNomina
+    );
+
+
+   cargarPanelPagosMensajeros();
+
+  cargarHistorialNomina();
+
+  if (window.lucide) {
+    lucide.createIcons();
+  }
 }
 
+
+async function pagarMensajero(
+  mensajeroId,
+  collectorUid
+) {
+  const inicio =
+    document.getElementById(
+      "payrollStartDate"
+    ).value;
+
+  const fin =
+    document.getElementById(
+      "payrollEndDate"
+    ).value;
+
+  if (!inicio || !fin) {
+    alert(
+      "Selecciona la fecha inicial y final."
+    );
+
+    return;
+  }
+
+  if (inicio > fin) {
+    alert(
+      "La fecha inicial no puede ser mayor que la final."
+    );
+
+    return;
+  }
+
+  const confirmar = confirm(
+    "¿Deseas registrar este pago de nómina?"
+  );
+
+  if (!confirmar) {
+    return;
+  }
+
+  try {
+    const mensajeroDoc =
+      await db
+        .collection("messengers")
+        .doc(mensajeroId)
+        .get();
+
+    if (!mensajeroDoc.exists) {
+      alert(
+        "No se encontró el mensajero."
+      );
+
+      return;
+    }
+
+    const mensajero = {
+      id: mensajeroDoc.id,
+      ...mensajeroDoc.data()
+    };
+
+    if (!collectorUid) {
+  collectorUid =
+    await obtenerUidMensajeroPorEmail(
+      mensajero.email
+    );
+}
+
+if (!collectorUid) {
+  alert(
+    "No se encontró la cuenta de acceso de este mensajero."
+  );
+
+  return;
+}
+
+    const resultadoCobros =
+      await db
+        .collection("payments")
+        .where(
+          "adminId",
+          "==",
+          usuarioActual.uid
+        )
+        .get();
+
+    const cobros =
+      resultadoCobros.docs
+        .map(function (documento) {
+          return {
+            id: documento.id,
+            ...documento.data()
+          };
+        })
+        .filter(function (pago) {
+          if (
+            pago.collectorId !==
+            collectorUid
+          ) {
+            return false;
+          }
+
+          if (!pago.createdAt?.toDate) {
+            return false;
+          }
+
+          const fechaPago =
+            pago.createdAt
+              .toDate()
+              .toISOString()
+              .split("T")[0];
+
+          return (
+            fechaPago >= inicio &&
+            fechaPago <= fin
+          );
+        });
+
+    const totalCobrado =
+      cobros.reduce(
+        function (total, pago) {
+          return (
+            total +
+            Number(pago.amount || 0)
+          );
+        },
+        0
+      );
+
+    const sueldo =
+      Number(
+        mensajero.salary || 0
+      );
+
+    const meta =
+      Number(
+        mensajero.goal || 0
+      );
+
+    const comision =
+      totalCobrado >= meta
+        ? Number(
+            mensajero.commission || 0
+          )
+        : 0;
+
+    const totalPagar =
+      sueldo + comision;
+
+    const pagoDuplicado =
+      await db
+        .collection("messengerPayrolls")
+        .where(
+          "adminId",
+          "==",
+          usuarioActual.uid
+        )
+        .where(
+          "collectorId",
+          "==",
+          collectorUid
+        )
+        .where(
+          "periodStart",
+          "==",
+          inicio
+        )
+        .where(
+          "periodEnd",
+          "==",
+          fin
+        )
+        .get();
+
+    if (!pagoDuplicado.empty) {
+      alert(
+        "Este período ya fue pagado a este mensajero."
+      );
+
+      return;
+    }
+
+    await db
+      .collection("messengerPayrolls")
+      .add({
+        adminId:
+          usuarioActual.uid,
+
+        adminEmail:
+          usuarioActual.email,
+
+        collectorId:
+          collectorUid,
+
+        collectorName:
+          mensajero.name || "Mensajero",
+
+        collectorEmail:
+          mensajero.email || "",
+
+        periodStart:
+          inicio,
+
+        periodEnd:
+          fin,
+
+        collectedAmount:
+          totalCobrado,
+
+        baseSalary:
+          sueldo,
+
+        goal:
+          meta,
+
+        commissionAmount:
+          comision,
+
+        totalPaid:
+          totalPagar,
+
+        status:
+          "pagado",
+
+        paidAt:
+          firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+    alert(
+      "Pago registrado correctamente."
+    );
+
+    await cargarPanelPagosMensajeros();
+
+    await cargarHistorialNomina();
+
+  } catch (error) {
+    console.error(
+      "Error pagando al mensajero:",
+      error
+    );
+
+    alert(
+      "No se pudo registrar el pago."
+    );
+  }
+}
 
 /*=====================================================
  TARJETAS DE PRÉSTAMOS
@@ -5648,28 +6072,66 @@ function abrirPantallaDelivery(pagina) {
 }
 
   if (pagina === "sueldo") {
-    titulo.textContent = "Mi sueldo";
+  titulo.textContent = "Mi sueldo";
 
-    contenido.innerHTML = `
-      <section class="content-card">
+  contenido.innerHTML = `
+    <section class="content-card">
 
-        <span class="section-label">
-          Nómina
-        </span>
+      <div class="card-header">
 
-        <h2>Resumen de pago</h2>
+        <div>
+          <span class="section-label">
+            Nómina
+          </span>
 
-        <div class="empty-state">
-          <h3>Sin información de pago</h3>
+          <h2>Mi sueldo</h2>
 
           <p>
-            Aquí aparecerán sueldo fijo, comisión y total.
+            Consulta tus pagos de sueldo y comisión.
           </p>
         </div>
 
-      </section>
-    `;
-  }
+      </div>
+
+      <div
+        id="deliverySalarySummary"
+      >
+        <div class="empty-state">
+          <h3>Cargando información...</h3>
+        </div>
+      </div>
+
+    </section>
+
+
+    <section class="content-card">
+
+      <div class="card-header">
+
+        <div>
+          <span class="section-label">
+            Historial
+          </span>
+
+          <h2>Pagos recibidos</h2>
+        </div>
+
+      </div>
+
+      <div
+        id="deliverySalaryHistory"
+        class="payroll-history-list"
+      >
+        <div class="empty-state">
+          <h3>Cargando pagos...</h3>
+        </div>
+      </div>
+
+    </section>
+  `;
+
+  cargarSueldoDelivery();
+}
 
   if (window.lucide) {
     lucide.createIcons();
@@ -5679,6 +6141,825 @@ function abrirPantallaDelivery(pagina) {
 /*=====================================================
  CONTROL DE AUTENTICACIÓN
 =====================================================*/
+
+async function obtenerUidMensajeroPorEmail(email) {
+  const correo =
+    String(email || "")
+      .trim()
+      .toLowerCase();
+
+  if (!correo) {
+    return null;
+  }
+
+  const resultado = await db
+    .collection("users")
+    .where("email", "==", correo)
+    .where("role", "==", "delivery")
+    .limit(1)
+    .get();
+
+  if (resultado.empty) {
+    return null;
+  }
+
+  return resultado.docs[0].id;
+}
+
+async function cargarPanelPagosMensajeros() {
+
+  const contenedor =
+    document.getElementById(
+      "messengerPayrollContainer"
+    );
+
+  if (!contenedor) return;
+
+  contenedor.innerHTML =
+    `<div class="empty-state">
+        <h3>Cargando...</h3>
+     </div>`;
+
+  try {
+
+    const inicio =
+      document.getElementById(
+        "payrollStartDate"
+      ).value;
+
+    const fin =
+      document.getElementById(
+        "payrollEndDate"
+      ).value;
+
+    const resultadoMensajeros =
+      await db
+        .collection("messengers")
+        .where(
+          "adminId",
+          "==",
+          usuarioActual.uid
+        )
+        .get();
+
+    const resultadoCobros =
+      await db
+        .collection("payments")
+        .where(
+          "adminId",
+          "==",
+          usuarioActual.uid
+        )
+        .get();
+
+    const mensajeros = await Promise.all(
+  resultadoMensajeros.docs.map(
+    async function (documento) {
+      const datos =
+        documento.data();
+
+      const collectorUid =
+        await obtenerUidMensajeroPorEmail(
+          datos.email
+        );
+
+      return {
+        id: documento.id,
+        collectorUid: collectorUid,
+        ...datos
+      };
+    }
+  )
+);
+
+    const pagos =
+      resultadoCobros.docs.map(
+        d => d.data()
+      );
+
+    if (!mensajeros.length) {
+
+      contenedor.innerHTML =
+        `<div class="empty-state">
+            <h3>No hay mensajeros.</h3>
+        </div>`;
+
+      return;
+    }
+
+    contenedor.innerHTML =
+      mensajeros.map(function(m){
+
+        const cobros =
+          pagos.filter(function(p){
+
+            if (
+              !m.collectorUid ||
+              p.collectorId !== m.collectorUid
+            ) {
+              return false;
+            }
+
+            if(
+              inicio &&
+              p.createdAt
+            ){
+
+              const fecha =
+                p.createdAt
+                  .toDate()
+                  .toISOString()
+                  .split("T")[0];
+
+              if(fecha < inicio)
+                return false;
+
+            }
+
+            if(
+              fin &&
+              p.createdAt
+            ){
+
+              const fecha =
+                p.createdAt
+                  .toDate()
+                  .toISOString()
+                  .split("T")[0];
+
+              if(fecha > fin)
+                return false;
+
+            }
+
+            return true;
+
+          });
+
+        const totalCobrado =
+          cobros.reduce(
+            (t,p)=>t+Number(p.amount||0),
+            0
+          );
+
+        const sueldo =
+          Number(m.salary||0);
+
+        const meta =
+          Number(m.goal||0);
+
+        const comision =
+          totalCobrado>=meta
+            ? Number(
+                m.commission||0
+              )
+            :0;
+
+        const total =
+          sueldo+comision;
+
+        return `
+
+        <article class="messenger-card">
+
+            <h3>
+              ${escaparHTML(m.name)}
+            </h3>
+
+            <p>
+
+              Cobrado:
+              <strong>
+
+              ${formatoDinero.format(
+                totalCobrado
+              )}
+
+              </strong>
+
+            </p>
+
+            <p>
+
+              Sueldo:
+
+              <strong>
+
+              ${formatoDinero.format(
+                sueldo
+              )}
+
+              </strong>
+
+            </p>
+
+            <p>
+
+              Comisión:
+
+              <strong>
+
+              ${formatoDinero.format(
+                comision
+              )}
+
+              </strong>
+
+            </p>
+
+            <h2>
+
+              ${formatoDinero.format(
+                total
+              )}
+
+            </h2>
+
+            <button
+              class="primary-button"
+              onclick="pagarMensajero('${m.id}', '${m.collectorUid || ""}')"
+            >
+
+              Pagar
+
+            </button>
+
+        </article>
+
+        `;
+
+      }).join("");
+
+    if(window.lucide){
+      lucide.createIcons();
+    }
+
+  }
+
+  catch(error){
+
+    console.error(error);
+
+  }
+
+}
+
+let historialNomina = [];
+
+async function cargarHistorialNomina() {
+  const contenedor =
+    document.getElementById(
+      "payrollHistoryContainer"
+    );
+
+  if (!contenedor || !usuarioActual) {
+    return;
+  }
+
+  contenedor.innerHTML = `
+    <div class="empty-state">
+      <h3>Cargando historial...</h3>
+    </div>
+  `;
+
+  try {
+    const resultado = await db
+      .collection("messengerPayrolls")
+      .where(
+        "adminId",
+        "==",
+        usuarioActual.uid
+      )
+      .get();
+
+    historialNomina =
+      resultado.docs
+        .map(function (documento) {
+          return {
+            id: documento.id,
+            ...documento.data()
+          };
+        })
+        .sort(function (a, b) {
+          const fechaA =
+            a.paidAt?.toMillis
+              ? a.paidAt.toMillis()
+              : 0;
+
+          const fechaB =
+            b.paidAt?.toMillis
+              ? b.paidAt.toMillis()
+              : 0;
+
+          return fechaB - fechaA;
+        });
+
+    renderizarHistorialNomina(
+      historialNomina
+    );
+
+  } catch (error) {
+    console.error(
+      "Error cargando historial de nómina:",
+      error
+    );
+
+    contenedor.innerHTML = `
+      <div class="empty-state">
+        <h3>No se pudo cargar el historial</h3>
+
+        <p>
+          Intenta nuevamente.
+        </p>
+      </div>
+    `;
+  }
+}
+
+
+function filtrarHistorialNomina() {
+  const texto =
+    document
+      .getElementById(
+        "payrollHistorySearch"
+      )
+      .value
+      .trim()
+      .toLowerCase();
+
+  const fecha =
+    document
+      .getElementById(
+        "payrollHistoryDate"
+      )
+      .value;
+
+  const filtrados =
+    historialNomina.filter(
+      function (pago) {
+        const nombre =
+          String(
+            pago.collectorName || ""
+          ).toLowerCase();
+
+        const coincideNombre =
+          !texto ||
+          nombre.includes(texto);
+
+        let coincideFecha = true;
+
+        if (fecha) {
+          const fechaPago =
+            pago.paidAt?.toDate
+              ? pago.paidAt
+                  .toDate()
+                  .toISOString()
+                  .split("T")[0]
+              : "";
+
+          coincideFecha =
+            fechaPago === fecha;
+        }
+
+        return (
+          coincideNombre &&
+          coincideFecha
+        );
+      }
+    );
+
+  renderizarHistorialNomina(
+    filtrados
+  );
+}
+
+
+function renderizarHistorialNomina(lista) {
+  const contenedor =
+    document.getElementById(
+      "payrollHistoryContainer"
+    );
+
+  if (!contenedor) {
+    return;
+  }
+
+  if (!lista.length) {
+    contenedor.innerHTML = `
+      <div class="empty-state">
+        <h3>Sin pagos registrados</h3>
+
+        <p>
+          Los pagos realizados aparecerán aquí.
+        </p>
+      </div>
+    `;
+
+    return;
+  }
+
+  contenedor.innerHTML =
+    lista
+      .map(function (pago) {
+        const fechaPago =
+          pago.paidAt?.toDate
+            ? pago.paidAt.toDate()
+            : null;
+
+        return `
+          <article class="payroll-history-item">
+
+            <div>
+
+              <span class="section-label">
+                Pago realizado
+              </span>
+
+              <h3>
+                ${escaparHTML(
+                  pago.collectorName ||
+                  "Mensajero"
+                )}
+              </h3>
+
+              <p>
+                Período:
+                ${escaparHTML(
+                  pago.periodStart || ""
+                )}
+                al
+                ${escaparHTML(
+                  pago.periodEnd || ""
+                )}
+              </p>
+
+              <small>
+                ${
+                  fechaPago
+                    ? `Pagado el ${fechaPago.toLocaleDateString(
+                        "es-DO"
+                      )} a las ${fechaPago.toLocaleTimeString(
+                        "es-DO",
+                        {
+                          hour: "2-digit",
+                          minute: "2-digit"
+                        }
+                      )}`
+                    : "Fecha pendiente"
+                }
+              </small>
+
+            </div>
+
+            <div class="payroll-history-values">
+
+              <div>
+                <span>Cobrado</span>
+
+                <strong>
+                  ${formatoDinero.format(
+                    Number(
+                      pago.collectedAmount || 0
+                    )
+                  )}
+                </strong>
+              </div>
+
+              <div>
+                <span>Sueldo</span>
+
+                <strong>
+                  ${formatoDinero.format(
+                    Number(
+                      pago.baseSalary || 0
+                    )
+                  )}
+                </strong>
+              </div>
+
+              <div>
+                <span>Comisión</span>
+
+                <strong>
+                  ${formatoDinero.format(
+                    Number(
+                      pago.commissionAmount || 0
+                    )
+                  )}
+                </strong>
+              </div>
+
+              <div>
+                <span>Total pagado</span>
+
+                <strong>
+                  ${formatoDinero.format(
+                    Number(
+                      pago.totalPaid || 0
+                    )
+                  )}
+                </strong>
+              </div>
+
+            </div>
+
+          </article>
+        `;
+      })
+      .join("");
+
+  if (window.lucide) {
+    lucide.createIcons();
+  }
+}
+
+async function cargarSueldoDelivery() {
+  const resumen =
+    document.getElementById(
+      "deliverySalarySummary"
+    );
+
+  const historial =
+    document.getElementById(
+      "deliverySalaryHistory"
+    );
+
+  if (
+    !resumen ||
+    !historial ||
+    !usuarioActual
+  ) {
+    return;
+  }
+
+  try {
+    const resultado = await db
+      .collection("messengerPayrolls")
+      .where(
+        "collectorId",
+        "==",
+        usuarioActual.uid
+      )
+      .get();
+
+    const pagosSueldo =
+      resultado.docs
+        .map(function (documento) {
+          return {
+            id: documento.id,
+            ...documento.data()
+          };
+        })
+        .sort(function (a, b) {
+          const fechaA =
+            a.paidAt?.toMillis
+              ? a.paidAt.toMillis()
+              : 0;
+
+          const fechaB =
+            b.paidAt?.toMillis
+              ? b.paidAt.toMillis()
+              : 0;
+
+          return fechaB - fechaA;
+        });
+
+    if (!pagosSueldo.length) {
+      resumen.innerHTML = `
+        <div class="empty-state">
+
+          <h3>No tienes pagos registrados</h3>
+
+          <p>
+            Cuando el administrador registre
+            tu pago aparecerá aquí.
+          </p>
+
+        </div>
+      `;
+
+      historial.innerHTML = `
+        <div class="empty-state">
+
+          <h3>Sin historial</h3>
+
+          <p>
+            Todavía no has recibido pagos.
+          </p>
+
+        </div>
+      `;
+
+      return;
+    }
+
+    const ultimoPago =
+      pagosSueldo[0];
+
+    const fechaUltimoPago =
+      ultimoPago.paidAt?.toDate
+        ? ultimoPago.paidAt.toDate()
+        : null;
+
+    resumen.innerHTML = `
+      <article class="messenger-card">
+
+        <span class="loan-status">
+          PAGADO
+        </span>
+
+        <h3>
+          Último pago recibido
+        </h3>
+
+        <p>
+          Período:
+          ${escaparHTML(
+            ultimoPago.periodStart || ""
+          )}
+          al
+          ${escaparHTML(
+            ultimoPago.periodEnd || ""
+          )}
+        </p>
+
+        <div class="messenger-data-grid">
+
+          <div>
+            <span>Cobrado</span>
+
+            <strong>
+              ${formatoDinero.format(
+                Number(
+                  ultimoPago.collectedAmount || 0
+                )
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>Sueldo</span>
+
+            <strong>
+              ${formatoDinero.format(
+                Number(
+                  ultimoPago.baseSalary || 0
+                )
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>Comisión</span>
+
+            <strong>
+              ${formatoDinero.format(
+                Number(
+                  ultimoPago.commissionAmount || 0
+                )
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>Total recibido</span>
+
+            <strong>
+              ${formatoDinero.format(
+                Number(
+                  ultimoPago.totalPaid || 0
+                )
+              )}
+            </strong>
+          </div>
+
+        </div>
+
+        <small>
+          ${
+            fechaUltimoPago
+              ? `Recibido el ${fechaUltimoPago.toLocaleDateString(
+                  "es-DO"
+                )}`
+              : "Fecha pendiente"
+          }
+        </small>
+
+      </article>
+    `;
+
+    historial.innerHTML =
+      pagosSueldo
+        .map(function (pago) {
+          const fechaPago =
+            pago.paidAt?.toDate
+              ? pago.paidAt.toDate()
+              : null;
+
+          return `
+            <article class="payroll-history-item">
+
+              <div>
+
+                <span class="section-label">
+                  Pago recibido
+                </span>
+
+                <h3>
+                  ${formatoDinero.format(
+                    Number(
+                      pago.totalPaid || 0
+                    )
+                  )}
+                </h3>
+
+                <p>
+                  Período:
+                  ${escaparHTML(
+                    pago.periodStart || ""
+                  )}
+                  al
+                  ${escaparHTML(
+                    pago.periodEnd || ""
+                  )}
+                </p>
+
+                <small>
+                  ${
+                    fechaPago
+                      ? fechaPago.toLocaleDateString(
+                          "es-DO"
+                        )
+                      : "Fecha pendiente"
+                  }
+                </small>
+
+              </div>
+
+              <div class="payroll-history-values">
+
+                <div>
+                  <span>Sueldo</span>
+
+                  <strong>
+                    ${formatoDinero.format(
+                      Number(
+                        pago.baseSalary || 0
+                      )
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Comisión</span>
+
+                  <strong>
+                    ${formatoDinero.format(
+                      Number(
+                        pago.commissionAmount || 0
+                      )
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Total</span>
+
+                  <strong>
+                    ${formatoDinero.format(
+                      Number(
+                        pago.totalPaid || 0
+                      )
+                    )}
+                  </strong>
+                </div>
+
+              </div>
+
+            </article>
+          `;
+        })
+        .join("");
+
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+
+  } catch (error) {
+    console.error(
+      "Error cargando sueldo del mensajero:",
+      error
+    );
+
+    resumen.innerHTML = `
+      <div class="empty-state">
+        <h3>No se pudo cargar el sueldo</h3>
+      </div>
+    `;
+
+    historial.innerHTML = "";
+  }
+}
 
 auth.onAuthStateChanged(
   async function (usuario) {
