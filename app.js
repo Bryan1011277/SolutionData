@@ -1319,7 +1319,11 @@ function mostrarInicio(
     return t + Number(p.pendingAmount || 0);
   }, 0);
 
-  const totalCobrado = prestamos.reduce(function (t, p) {
+  const totalCobrado = prestamos
+  .filter(function (prestamo) {
+    return prestamo.status === "activo";
+  })
+  .reduce(function (t, p) {
     return t + Number(p.paidAmount || 0);
   }, 0);
 
