@@ -7,6 +7,10 @@ let cancelarEscuchaPrestamos = null;
 let pagos = [];
 let cancelarEscuchaPagos = null;
 
+let ultimaActividadLimpiadaEn = null;
+
+let mensajeroEditandoId = null;
+
 let configuracionMetricas = {
   totalInterest: 30,
 
@@ -763,6 +767,11 @@ async function cargarConfiguracionGeneral() {
 
     const configuracion = documento.data();
 
+    ultimaActividadLimpiadaEn =
+      configuracion.activityClearedAt?.toMillis
+        ? configuracion.activityClearedAt.toMillis()
+        : null;
+
     configuracionMetricas = {
       ...configuracionMetricas,
       ...configuracion,
@@ -1434,23 +1443,28 @@ function mostrarInicio(
 
         <div class="home-panel-header">
 
-          <div>
+  <div>
 
-            <span class="section-label">
+    <span class="section-label">
+      Registro
+    </span>
 
-              Registro
+    <h2>
+      Última actividad
+    </h2>
 
-            </span>
+  </div>
 
-            <h2>
+  <button
+    type="button"
+    id="clearAdminActivityButton"
+    class="loan-action-button danger"
+  >
+    <i data-lucide="trash-2"></i>
+    Limpiar actividad
+  </button>
 
-              Última actividad
-
-            </h2>
-
-          </div>
-
-        </div>
+</div>
 
         <div class="activity-list">
 
@@ -1496,8 +1510,88 @@ function mostrarInicio(
 
   `;
 
-lucide.createIcons();
+const botonLimpiarActividad =
+  document.getElementById(
+    "clearAdminActivityButton"
+  );
 
+if (botonLimpiarActividad) {
+  botonLimpiarActividad.addEventListener(
+    "click",
+    limpiarUltimaActividadAdmin
+  );
+}
+
+if (window.lucide) {
+  lucide.createIcons();
+}
+
+}
+
+async function limpiarUltimaActividadAdmin() {
+  if (!usuarioActual) {
+    return;
+  }
+
+  const confirmar = confirm(
+    "¿Deseas limpiar la última actividad del panel? Los préstamos y pagos no serán eliminados."
+  );
+
+  if (!confirmar) {
+    return;
+  }
+
+  const boton =
+    document.getElementById(
+      "clearAdminActivityButton"
+    );
+
+  if (boton) {
+    boton.disabled = true;
+    boton.textContent = "Limpiando...";
+  }
+
+  try {
+    const ahora =
+      firebase.firestore.Timestamp.now();
+
+    await db
+      .collection("settings")
+      .doc(usuarioActual.uid)
+      .set(
+        {
+          activityClearedAt: ahora
+        },
+        {
+          merge: true
+        }
+      );
+
+    ultimaActividadLimpiadaEn =
+      ahora.toMillis();
+
+    abrirPantalla("inicio");
+
+  } catch (error) {
+    console.error(
+      "Error limpiando actividad:",
+      error
+    );
+
+    alert(
+      "No se pudo limpiar la actividad."
+    );
+
+  } finally {
+    if (boton) {
+      boton.disabled = false;
+
+      boton.innerHTML = `
+        <i data-lucide="trash-2"></i>
+        Limpiar actividad
+      `;
+    }
+  }
 }
 
 function crearUltimaActividad() {
@@ -1534,11 +1628,24 @@ function crearUltimaActividad() {
     });
 
   const actividades =
-    [
-      ...actividadesPrestamos,
-      ...actividadesPagos
-    ]
-      .sort(function (a, b) {
+  [
+    ...actividadesPrestamos,
+    ...actividadesPagos
+  ]
+    .filter(function (actividad) {
+      if (!ultimaActividadLimpiadaEn) {
+        return true;
+      }
+
+      const fechaActividad =
+        actividad.fecha?.toMillis
+          ? actividad.fecha.toMillis()
+          : 0;
+
+      return fechaActividad >
+        ultimaActividadLimpiadaEn;
+    })
+    .sort(function (a, b) {
 
         const fechaA =
           a.fecha?.toMillis
@@ -2504,7 +2611,9 @@ function mostrarMensajeros(
               Nuevo registro
             </span>
 
-            <h2>Agregar mensajero</h2>
+            <h2 id="messengerModalTitle">
+              Agregar mensajero
+            </h2>
           </div>
 
           <button
@@ -2683,10 +2792,116 @@ function mostrarMensajeros(
 }
 
 function abrirModalMensajero() {
+  mensajeroEditandoId = null;
+
   const modal =
     document.getElementById("messengerModal");
 
+  const titulo =
+    document.getElementById(
+      "messengerModalTitle"
+    );
+
+  const boton =
+    document.getElementById(
+      "saveMessengerButton"
+    );
+
+  document
+    .getElementById("messengerForm")
+    .reset();
+
+  titulo.textContent =
+    "Agregar mensajero";
+
+  boton.textContent =
+    "Guardar mensajero";
+
   modal.classList.remove("hidden");
+}
+
+async function editarMensajero(mensajeroId) {
+  try {
+    const documento = await db
+      .collection("messengers")
+      .doc(mensajeroId)
+      .get();
+
+    if (!documento.exists) {
+      alert("No se encontró el mensajero.");
+      return;
+    }
+
+    const mensajero =
+      documento.data();
+
+    mensajeroEditandoId =
+      documento.id;
+
+    document.getElementById(
+      "messengerName"
+    ).value =
+      mensajero.name || "";
+
+    document.getElementById(
+      "messengerPhone"
+    ).value =
+      mensajero.phone || "";
+
+    document.getElementById(
+      "messengerEmail"
+    ).value =
+      mensajero.email || "";
+
+    document.getElementById(
+      "messengerId"
+    ).value =
+      mensajero.identification || "";
+
+    document.getElementById(
+      "messengerSalary"
+    ).value =
+      Number(mensajero.salary || 0);
+
+    document.getElementById(
+      "messengerGoal"
+    ).value =
+      Number(mensajero.goal || 0);
+
+    document.getElementById(
+      "messengerCommission"
+    ).value =
+      Number(mensajero.commission || 0);
+
+    document.getElementById(
+      "messengerStatus"
+    ).value =
+      mensajero.status || "activo";
+
+    document.getElementById(
+      "messengerModalTitle"
+    ).textContent =
+      "Editar mensajero";
+
+    document.getElementById(
+      "saveMessengerButton"
+    ).textContent =
+      "Guardar cambios";
+
+    document
+      .getElementById("messengerModal")
+      .classList.remove("hidden");
+
+  } catch (error) {
+    console.error(
+      "Error abriendo mensajero:",
+      error
+    );
+
+    alert(
+      "No se pudo abrir el mensajero."
+    );
+  }
 }
 
 
@@ -2699,6 +2914,8 @@ function cerrarModalMensajero() {
 
   modal.classList.add("hidden");
   formulario.reset();
+
+  mensajeroEditandoId = null;
 
   document.getElementById(
     "messengerMessage"
@@ -2720,68 +2937,125 @@ async function guardarMensajero(event) {
   mensaje.textContent = "";
 
   try {
+    const datos = {
+
+  adminId: usuarioActual.uid,
+
+  adminEmail: usuarioActual.email,
+
+  name:
+    document
+      .getElementById("messengerName")
+      .value
+      .trim(),
+
+  phone:
+    document
+      .getElementById("messengerPhone")
+      .value
+      .trim(),
+
+  email:
+    document
+      .getElementById("messengerEmail")
+      .value
+      .trim()
+      .toLowerCase(),
+
+  identification:
+    document
+      .getElementById("messengerId")
+      .value
+      .trim(),
+
+  salary:
+    Number(
+      document
+        .getElementById("messengerSalary")
+        .value
+    ) || 0,
+
+  goal:
+    Number(
+      document
+        .getElementById("messengerGoal")
+        .value
+    ) || 0,
+
+  commission:
+    Number(
+      document
+        .getElementById("messengerCommission")
+        .value
+    ) || 0,
+
+  status:
+    document
+      .getElementById("messengerStatus")
+      .value,
+
+  role: "delivery"
+
+};
+
+async function eliminarMensajero(mensajeroId) {
+
+  const confirmar = confirm(
+    "¿Deseas eliminar este mensajero?"
+  );
+
+  if (!confirmar) {
+    return;
+  }
+
+  try {
+
     await db
       .collection("messengers")
-      .add({
-        adminId: usuarioActual.uid,
-        adminEmail: usuarioActual.email,
+      .doc(mensajeroId)
+      .delete();
 
-        name:
-          document
-            .getElementById("messengerName")
-            .value
-            .trim(),
+    cargarMensajeros();
 
-        phone:
-          document
-            .getElementById("messengerPhone")
-            .value
-            .trim(),
+  }
+  catch (error) {
 
-        email:
-          document
-            .getElementById("messengerEmail")
-            .value
-            .trim()
-            .toLowerCase(),
+    console.error(
+      "Error eliminando mensajero:",
+      error
+    );
 
-        identification:
-          document
-            .getElementById("messengerId")
-            .value
-            .trim(),
+    alert(
+      "No se pudo eliminar el mensajero."
+    );
 
-        salary:
-          Number(
-            document
-              .getElementById("messengerSalary")
-              .value
-          ) || 0,
+  }
 
-        goal:
-          Number(
-            document
-              .getElementById("messengerGoal")
-              .value
-          ) || 0,
+}
 
-        commission:
-          Number(
-            document
-              .getElementById("messengerCommission")
-              .value
-          ) || 0,
+if (mensajeroEditandoId) {
 
-        status:
-          document
-            .getElementById("messengerStatus")
-            .value,
+  await db
+    .collection("messengers")
+    .doc(mensajeroEditandoId)
+    .update({
+      ...datos,
+      updatedAt:
+        firebase.firestore.FieldValue.serverTimestamp()
+    });
 
-        role: "delivery",
+} else {
 
-        createdAt:
-          firebase.firestore.FieldValue.serverTimestamp()
-      });
+  await db
+    .collection("messengers")
+    .add({
+      ...datos,
+
+      createdAt:
+        firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+}
 
     cerrarModalMensajero();
     cargarMensajeros();
@@ -2925,6 +3199,48 @@ async function cargarMensajeros() {
                     )}
                   </strong>
                 </div>
+
+              </div>
+
+              <div class="messenger-card-actions">
+
+                <button
+                  type="button"
+                  class="loan-action-button"
+                  onclick="editarMensajero('${mensajero.id}')"
+                >
+                  <i data-lucide="pencil"></i>
+                  Editar
+                </button>
+
+                <button
+                  type="button"
+                  class="loan-action-button danger"
+                  onclick="eliminarMensajero('${mensajero.id}')"
+                >
+                  <i data-lucide="trash-2"></i>
+                  Eliminar
+                </button>
+
+              </div>
+
+              <div class="messenger-actions">
+
+                <button
+                  type="button"
+                  class="loan-action-button"
+                  onclick="editarMensajero('${mensajero.id}')"
+                >
+                  Editar
+                </button>
+
+                <button
+                  type="button"
+                  class="loan-action-button danger"
+                  onclick="eliminarMensajero('${mensajero.id}')"
+                >
+                  Eliminar
+                </button>
 
               </div>
 
