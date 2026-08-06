@@ -3043,3 +3043,279 @@ text-align:center;
 margin-top:15px;
 
 }
+
+/*=====================================================
+ MENÚ LATERAL RESPONSIVE
+=====================================================*/
+
+.mobile-app-header,
+.sidebar-close-button,
+.sidebar-overlay {
+  display: none;
+}
+
+
+/*=====================================================
+ CELULARES Y TABLETS
+=====================================================*/
+
+@media (max-width: 768px) {
+
+  body.menu-mobile-open {
+    overflow: hidden;
+  }
+
+  .dashboard-layout {
+    display: block;
+    min-height: 100vh;
+  }
+
+  .main-content {
+    width: 100%;
+    min-height: 100vh;
+    padding: 12px;
+  }
+
+
+  /*===========================
+    CABECERA MÓVIL
+  ===========================*/
+
+  .mobile-app-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 800;
+    padding: 12px 14px;
+    margin: -12px -12px 14px;
+    background: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+  }
+
+  .mobile-menu-button {
+    width: 46px;
+    min-width: 46px;
+    height: 46px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 14px;
+    background: #f1f5f9;
+    color: #111827;
+    cursor: pointer;
+  }
+
+  .mobile-menu-button svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .mobile-app-brand {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mobile-app-brand strong {
+    font-size: 17px;
+    line-height: 1.2;
+    color: #111827;
+  }
+
+  .mobile-app-brand span {
+    margin-top: 2px;
+    font-size: 12px;
+    color: #64748b;
+  }
+
+
+  /*===========================
+    FONDO OSCURO
+  ===========================*/
+
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    display: block;
+    z-index: 990;
+    background: rgba(15, 23, 42, 0.55);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      opacity 0.25s ease,
+      visibility 0.25s ease;
+  }
+
+  .sidebar-overlay.sidebar-overlay-visible {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+
+  /*===========================
+    MENÚ DESLIZANTE
+  ===========================*/
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    width: min(86vw, 330px);
+    height: 100dvh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    padding: 18px;
+    overflow-y: auto;
+    transform: translateX(-105%);
+    transition: transform 0.25s ease;
+    box-shadow: 18px 0 45px rgba(15, 23, 42, 0.22);
+  }
+
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .sidebar-close-button {
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .sidebar-close-button svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .sidebar-brand {
+    margin: 0;
+  }
+
+  .sidebar-user {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0;
+    padding: 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .sidebar-user-avatar {
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .sidebar-user-avatar svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  .sidebar-user > div:last-child {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-user strong {
+    font-size: 14px;
+  }
+
+  .sidebar-user span {
+    margin-top: 3px;
+    max-width: 210px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    opacity: 0.75;
+  }
+
+  .sidebar-menu {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .menu-button {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+    padding: 13px 14px;
+    border-radius: 13px;
+  }
+
+  .logout-button {
+    width: 100%;
+    margin-top: 18px;
+  }
+
+
+  /*===========================
+    CONTENIDO
+  ===========================*/
+
+  .topbar {
+    margin-top: 0;
+  }
+}
+
+
+/*=====================================================
+ CELULARES PEQUEÑOS
+=====================================================*/
+
+@media (max-width: 420px) {
+
+  .sidebar {
+    width: 88vw;
+    padding: 16px;
+  }
+
+  .mobile-app-header {
+    padding: 10px 12px;
+  }
+
+  .mobile-menu-button {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+  }
+
+  .mobile-app-brand strong {
+    font-size: 16px;
+  }
+}

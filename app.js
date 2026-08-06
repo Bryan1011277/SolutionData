@@ -199,13 +199,50 @@ function mostrarDashboard(usuario) {
   usuarioActual = usuario;
 
   app.innerHTML = `
+    <div
+      id="sidebarOverlay"
+      class="sidebar-overlay"
+    ></div>
+
     <div class="dashboard-layout">
 
-      <aside class="sidebar">
+      <aside
+        id="mainSidebar"
+        class="sidebar"
+      >
 
-        <div class="sidebar-brand">
-          <strong>SolutionData</strong>
-          <span>Préstamos y cobros</span>
+        <div class="sidebar-mobile-header">
+
+          <div class="sidebar-brand">
+            <strong>SolutionData</strong>
+            <span>Préstamos y cobros</span>
+          </div>
+
+          <button
+            type="button"
+            id="closeSidebarButton"
+            class="sidebar-close-button"
+            aria-label="Cerrar menú"
+          >
+            <i data-lucide="x"></i>
+          </button>
+
+        </div>
+
+        <div class="sidebar-user">
+
+          <div class="sidebar-user-avatar">
+            <i data-lucide="user"></i>
+          </div>
+
+          <div>
+            <strong>Administrador</strong>
+
+            <span>
+              ${escaparHTML(usuario.email)}
+            </span>
+          </div>
+
         </div>
 
         <nav class="sidebar-menu">
@@ -272,9 +309,33 @@ function mostrarDashboard(usuario) {
 
       <main class="main-content">
 
+        <header class="mobile-app-header">
+
+          <button
+            type="button"
+            id="openSidebarButton"
+            class="mobile-menu-button"
+            aria-label="Abrir menú"
+          >
+            <i data-lucide="menu"></i>
+          </button>
+
+          <div class="mobile-app-brand">
+
+            <strong>SolutionData</strong>
+
+            <span>
+              Préstamos y cobros
+            </span>
+
+          </div>
+
+        </header>
+
         <header class="topbar">
 
           <div>
+
             <span class="section-label">
               SolutionData
             </span>
@@ -286,6 +347,7 @@ function mostrarDashboard(usuario) {
             <p>
               ${escaparHTML(usuario.email)}
             </p>
+
           </div>
 
           <button
@@ -297,7 +359,7 @@ function mostrarDashboard(usuario) {
 
         </header>
 
-              <section id="pageContent"></section>
+        <section id="pageContent"></section>
 
       </main>
 
@@ -314,11 +376,13 @@ function mostrarDashboard(usuario) {
         <div class="loan-modal-header">
 
           <div>
+
             <span class="section-label">
               Nuevo registro
             </span>
 
             <h2>Crear préstamo</h2>
+
           </div>
 
           <button
@@ -417,6 +481,7 @@ function mostrarDashboard(usuario) {
               Frecuencia de cobro
 
               <select id="frequency" required>
+
                 <option value="diario">
                   Diario
                 </option>
@@ -432,6 +497,7 @@ function mostrarDashboard(usuario) {
                 <option value="mensual">
                   Mensual
                 </option>
+
               </select>
             </label>
 
@@ -449,9 +515,11 @@ function mostrarDashboard(usuario) {
               Mensajero asignado
 
               <select id="collector" required>
+
                 <option value="">
                   Cargando mensajero...
                 </option>
+
               </select>
             </label>
 
@@ -460,19 +528,23 @@ function mostrarDashboard(usuario) {
           <section class="loan-calculation">
 
             <div>
+
               <span>Total a cobrar</span>
 
               <strong id="totalPreview">
                 RD$0.00
               </strong>
+
             </div>
 
             <div>
+
               <span>Monto por cuota</span>
 
               <strong id="installmentPreview">
                 RD$0.00
               </strong>
+
             </div>
 
           </section>
@@ -510,6 +582,73 @@ function mostrarDashboard(usuario) {
   `;
 
 
+  const sidebar =
+    document.getElementById(
+      "mainSidebar"
+    );
+
+  const overlay =
+    document.getElementById(
+      "sidebarOverlay"
+    );
+
+  const botonAbrirMenu =
+    document.getElementById(
+      "openSidebarButton"
+    );
+
+  const botonCerrarMenu =
+    document.getElementById(
+      "closeSidebarButton"
+    );
+
+
+  function abrirMenuMovil() {
+    sidebar.classList.add(
+      "sidebar-open"
+    );
+
+    overlay.classList.add(
+      "sidebar-overlay-visible"
+    );
+
+    document.body.classList.add(
+      "menu-mobile-open"
+    );
+  }
+
+
+  function cerrarMenuMovil() {
+    sidebar.classList.remove(
+      "sidebar-open"
+    );
+
+    overlay.classList.remove(
+      "sidebar-overlay-visible"
+    );
+
+    document.body.classList.remove(
+      "menu-mobile-open"
+    );
+  }
+
+
+  botonAbrirMenu.addEventListener(
+    "click",
+    abrirMenuMovil
+  );
+
+
+  botonCerrarMenu.addEventListener(
+    "click",
+    cerrarMenuMovil
+  );
+
+
+  overlay.addEventListener(
+    "click",
+    cerrarMenuMovil
+  );
 
 
   document
@@ -517,6 +656,8 @@ function mostrarDashboard(usuario) {
     .addEventListener(
       "click",
       async function () {
+
+        cerrarMenuMovil();
 
         await auth.signOut();
 
@@ -544,26 +685,41 @@ function mostrarDashboard(usuario) {
             button.dataset.page
           );
 
+          cerrarMenuMovil();
+
         }
       );
 
     });
 
 
-configurarFormularioPrestamo();
+  window.addEventListener(
+    "resize",
+    function () {
 
-cargarConfiguracionGeneral();
+      if (window.innerWidth > 768) {
+        cerrarMenuMovil();
+      }
 
-escucharPrestamos();
+    }
+  );
 
-escucharPagos();
 
-if (window.lucide) {
-  lucide.createIcons();
-}
+  configurarFormularioPrestamo();
 
-abrirPantalla("inicio");
+  cargarConfiguracionGeneral();
 
+  escucharPrestamos();
+
+  escucharPagos();
+
+
+  if (window.lucide) {
+    lucide.createIcons();
+  }
+
+
+  abrirPantalla("inicio");
 }
 
 /*=====================================================
