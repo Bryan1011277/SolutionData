@@ -1956,6 +1956,15 @@ const cobradoEsteMes =
     Limpiar actividad
   </button>
 
+  <button
+    type="button"
+    id="resetTestDataButton"
+    class="loan-action-button danger"
+  >
+    <i data-lucide="rotate-ccw"></i>
+     Reboot
+  </button>
+
 </div>
 
         <div class="activity-list">
@@ -2014,10 +2023,199 @@ if (botonLimpiarActividad) {
   );
 }
 
+const botonResetearPruebas =
+  document.getElementById(
+    "resetTestDataButton"
+  );
+
+if (botonResetearPruebas) {
+  botonResetearPruebas.addEventListener(
+    "click",
+    resetearDatosDePrueba
+  );
+}
+
 if (window.lucide) {
   lucide.createIcons();
 }
 
+}
+
+/*=====================================================
+ RESETEAR DATOS DE PRUEBA
+=====================================================*/
+
+async function resetearDatosDePrueba() {
+  if (!usuarioActual) {
+    return;
+  }
+
+  const confirmar = confirm(
+    "¿Deseas ejecutar un Reboot del sistema?"
+  );
+
+  if (!confirmar) {
+    return;
+  }
+
+  const confirmacionFinal = prompt(
+    'Esta acción no se puede deshacer.\n\nEscribe exactamente: REBOOT'
+  );
+
+  if (confirmacionFinal !== "REBOOT") {
+    alert(
+      "El reinicio fue cancelado."
+    );
+
+    return;
+  }
+
+  const boton =
+    document.getElementById(
+      "resetTestDataButton"
+    );
+
+  if (boton) {
+    boton.disabled = true;
+
+    boton.innerHTML = `
+      <i data-lucide="loader-circle"></i>
+      Reiniciando...
+    `;
+  }
+
+  try {
+    const [
+      resultadoPrestamos,
+      resultadoPagos,
+      resultadoNominas
+    ] = await Promise.all([
+      db
+        .collection("loans")
+        .where(
+          "adminId",
+          "==",
+          usuarioActual.uid
+        )
+        .get(),
+
+      db
+        .collection("payments")
+        .where(
+          "adminId",
+          "==",
+          usuarioActual.uid
+        )
+        .get(),
+
+      db
+        .collection("messengerPayrolls")
+        .where(
+          "adminId",
+          "==",
+          usuarioActual.uid
+        )
+        .get()
+    ]);
+
+    const referencias = [
+      ...resultadoPrestamos.docs.map(
+        function (documento) {
+          return documento.ref;
+        }
+      ),
+
+      ...resultadoPagos.docs.map(
+        function (documento) {
+          return documento.ref;
+        }
+      ),
+
+      ...resultadoNominas.docs.map(
+        function (documento) {
+          return documento.ref;
+        }
+      )
+    ];
+
+    const limiteLote = 400;
+
+    for (
+      let inicio = 0;
+      inicio < referencias.length;
+      inicio += limiteLote
+    ) {
+      const lote =
+        db.batch();
+
+      referencias
+        .slice(
+          inicio,
+          inicio + limiteLote
+        )
+        .forEach(
+          function (referencia) {
+            lote.delete(
+              referencia
+            );
+          }
+        );
+
+      await lote.commit();
+    }
+
+    const ahora =
+      firebase.firestore.Timestamp.now();
+
+    await db
+      .collection("settings")
+      .doc(usuarioActual.uid)
+      .set(
+        {
+          activityClearedAt:
+            ahora
+        },
+        {
+          merge: true
+        }
+      );
+
+    prestamos = [];
+    pagos = [];
+
+    ultimaActividadLimpiadaEn =
+      ahora.toMillis();
+
+    alert(
+      "Sistema de pruebas reiniciado. Todos los montos quedaron en cero."
+    );
+
+    abrirPantalla("inicio");
+
+  } catch (error) {
+    console.error(
+      "Error ejecutando Reboot:"
+    );
+
+    alert(
+      error.message ||
+      "No se pudo completar el Reboot."
+    );
+
+  } finally {
+    if (boton) {
+      boton.disabled = false;
+
+      boton.innerHTML = `
+        <i data-lucide="rotate-ccw"></i>
+        Reboot
+      `;
+    }
+
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+  }
 }
 
 async function limpiarUltimaActividadAdmin() {
@@ -5107,9 +5305,11 @@ async function restaurarPrestamo(prestamoId) {
 }
 
 
-async function eliminarPrestamoDefinitivamente(prestamoId) {
+async function eliminarPrestamoDefinitivamente(
+  prestamoId
+) {
   const confirmar = confirm(
-    "¿Seguro que deseas eliminar este préstamo para siempre? Esta acción no se puede deshacer."
+    "¿Seguro que deseas eliminar este préstamo y todos sus cobros para siempre?"
   );
 
   if (!confirmar) {
@@ -5117,7 +5317,7 @@ async function eliminarPrestamoDefinitivamente(prestamoId) {
   }
 
   const segundaConfirmacion = confirm(
-    "Confirma nuevamente: el préstamo será borrado definitivamente de Firebase."
+    "Esta acción eliminará el préstamo, los recibos y todos sus pagos. No se puede deshacer."
   );
 
   if (!segundaConfirmacion) {
@@ -5125,19 +5325,95 @@ async function eliminarPrestamoDefinitivamente(prestamoId) {
   }
 
   try {
-    await db
-      .collection("loans")
-      .doc(prestamoId)
-      .delete();
+    const referenciaPrestamo =
+      db
+        .collection("loans")
+        .doc(prestamoId);
 
-    alert("Préstamo eliminado definitivamente.");
+    const documentoPrestamo =
+      await referenciaPrestamo.get();
+
+    if (!documentoPrestamo.exists) {
+      alert(
+        "Este préstamo ya no existe."
+      );
+
+      return;
+    }
+
+    const prestamo =
+      documentoPrestamo.data();
+
+    if (
+      prestamo.adminId !==
+      usuarioActual.uid
+    ) {
+      throw new Error(
+        "No tienes permiso para eliminar este préstamo."
+      );
+    }
+
+    const resultadoPagos =
+      await db
+        .collection("payments")
+        .where(
+          "loanId",
+          "==",
+          prestamoId
+        )
+        .get();
+
+    const referenciasPagos =
+      resultadoPagos.docs.map(
+        function (documento) {
+          return documento.ref;
+        }
+      );
+
+    const limiteLote = 400;
+
+    for (
+      let inicio = 0;
+      inicio < referenciasPagos.length;
+      inicio += limiteLote
+    ) {
+      const lote =
+        db.batch();
+
+      referenciasPagos
+        .slice(
+          inicio,
+          inicio + limiteLote
+        )
+        .forEach(
+          function (referenciaPago) {
+            lote.delete(
+              referenciaPago
+            );
+          }
+        );
+
+      await lote.commit();
+    }
+
+    await referenciaPrestamo.delete();
+
+    alert(
+      "Préstamo, cobros y recibos eliminados definitivamente."
+    );
+
+    abrirPantalla("archivo");
+
   } catch (error) {
     console.error(
       "Error eliminando préstamo definitivamente:",
       error
     );
 
-    alert("No se pudo eliminar el préstamo.");
+    alert(
+      error.message ||
+      "No se pudo eliminar el préstamo."
+    );
   }
 }
 
@@ -6467,7 +6743,7 @@ async function guardarPagoDelivery(event) {
 
             status:
               prestamoCompletado
-                ? "pagado_pendiente_recibo"
+                ? "terminado"
                 : "activo",
 
             paidAt:
@@ -6476,7 +6752,9 @@ async function guardarPagoDelivery(event) {
                 : null,
 
             completedAt:
-              null,
+              prestamoCompletado
+                ? fechaServidor
+                : null,
 
             lastPaymentId:
               referenciaPago.id,
@@ -6923,6 +7201,304 @@ async function eliminarHistorialDelivery() {
   }
 }
 
+async function cargarInicioDelivery() {
+  if (!usuarioActual) {
+    return;
+  }
+
+  const contenedor =
+    document.getElementById(
+      "deliveryHomeLoans"
+    );
+
+  try {
+    const resultadoPrestamos =
+      await db
+        .collection("loans")
+        .where(
+          "collectorId",
+          "==",
+          usuarioActual.uid
+        )
+        .get();
+
+    const resultadoPagos =
+      await db
+        .collection("payments")
+        .where(
+          "collectorId",
+          "==",
+          usuarioActual.uid
+        )
+        .get();
+
+    const prestamosAsignados =
+      resultadoPrestamos.docs
+        .map(function (documento) {
+          return {
+            id: documento.id,
+            ...documento.data()
+          };
+        })
+        .filter(function (prestamo) {
+          return [
+            "activo",
+            "pagado_pendiente_recibo"
+          ].includes(
+            prestamo.status
+          );
+        });
+
+    const ahora =
+      new Date();
+
+    const inicioMes =
+      new Date(
+        ahora.getFullYear(),
+        ahora.getMonth(),
+        1
+      );
+
+    const inicioMesSiguiente =
+      new Date(
+        ahora.getFullYear(),
+        ahora.getMonth() + 1,
+        1
+      );
+
+    const cobradoMes =
+      resultadoPagos.docs.reduce(
+        function (total, documento) {
+          const pago =
+            documento.data();
+
+          const fecha =
+            pago.createdAt?.toDate
+              ? pago.createdAt.toDate()
+              : null;
+
+          if (
+            !fecha ||
+            fecha < inicioMes ||
+            fecha >= inicioMesSiguiente
+          ) {
+            return total;
+          }
+
+          return (
+            total +
+            Number(pago.amount || 0)
+          );
+        },
+        0
+      );
+
+    const totalPendiente =
+      prestamosAsignados.reduce(
+        function (total, prestamo) {
+          return (
+            total +
+            Number(
+              prestamo.pendingAmount || 0
+            )
+          );
+        },
+        0
+      );
+
+    const totalOriginal =
+      prestamosAsignados.reduce(
+        function (total, prestamo) {
+          return (
+            total +
+            Number(
+              prestamo.totalAmount || 0
+            )
+          );
+        },
+        0
+      );
+
+    const totalPagado =
+      prestamosAsignados.reduce(
+        function (total, prestamo) {
+          return (
+            total +
+            Number(
+              prestamo.paidAmount || 0
+            )
+          );
+        },
+        0
+      );
+
+    const progreso =
+      totalOriginal > 0
+        ? Math.min(
+            Math.round(
+              (
+                totalPagado /
+                totalOriginal
+              ) * 100
+            ),
+            100
+          )
+        : 0;
+
+    document.getElementById(
+      "deliveryHomeClients"
+    ).textContent =
+      prestamosAsignados.length;
+
+    document.getElementById(
+      "deliveryHomeCollected"
+    ).textContent =
+      formatoDinero.format(
+        cobradoMes
+      );
+
+    document.getElementById(
+      "deliveryHomePending"
+    ).textContent =
+      formatoDinero.format(
+        totalPendiente
+      );
+
+    document.getElementById(
+      "deliveryHomeProgress"
+    ).textContent =
+      `${progreso}%`;
+
+    if (!prestamosAsignados.length) {
+      contenedor.innerHTML = `
+        <div class="empty-state">
+
+          <h3>
+            No tienes deudas pendientes
+          </h3>
+
+          <p>
+            Los nuevos préstamos asignados
+            aparecerán aquí.
+          </p>
+
+        </div>
+      `;
+
+      return;
+    }
+
+    contenedor.innerHTML =
+      prestamosAsignados
+        .slice(0, 4)
+        .map(function (prestamo) {
+          const pendiente =
+            Number(
+              prestamo.pendingAmount || 0
+            );
+
+          return `
+            <article class="today-client-card">
+
+              <div class="today-client-top">
+
+                <div class="client-avatar">
+                  ${obtenerIniciales(
+                    prestamo.clientName
+                  )}
+                </div>
+
+                <div class="client-basic-data">
+
+                  <strong>
+                    ${escaparHTML(
+                      prestamo.clientName ||
+                      "Cliente"
+                    )}
+                  </strong>
+
+                  <span>
+                    ${escaparHTML(
+                      prestamo.clientPhone ||
+                      ""
+                    )}
+                  </span>
+
+                </div>
+
+                <span class="client-pending-badge">
+                  Pendiente
+                </span>
+
+              </div>
+
+              <div class="client-payment-data">
+
+                <div>
+                  <span>Cuota</span>
+
+                  <strong>
+                    ${formatoDinero.format(
+                      Number(
+                        prestamo.installmentAmount ||
+                        0
+                      )
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Deuda</span>
+
+                  <strong class="danger-number">
+                    ${formatoDinero.format(
+                      pendiente
+                    )}
+                  </strong>
+                </div>
+
+              </div>
+
+              <button
+                type="button"
+                class="loan-action-button"
+                onclick="abrirPantallaDelivery('cobros')"
+              >
+                <i data-lucide="eye"></i>
+                Ver deuda
+              </button>
+
+            </article>
+          `;
+        })
+        .join("");
+
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+
+  } catch (error) {
+    console.error(
+      "Error cargando inicio del mensajero:",
+      error
+    );
+
+    contenedor.innerHTML = `
+      <div class="empty-state">
+
+        <h3>
+          No se pudieron cargar las deudas
+        </h3>
+
+        <p>
+          Revisa la conexión y las reglas de Firebase.
+        </p>
+
+      </div>
+    `;
+  }
+}
+
 function abrirPantallaDelivery(pagina) {
   const titulo =
     document.getElementById("deliveryPageTitle");
@@ -6944,52 +7520,103 @@ function abrirPantallaDelivery(pagina) {
     });
 
   if (pagina === "inicio") {
-    titulo.textContent = "Inicio";
+  titulo.textContent =
+    "Inicio";
 
-    contenido.innerHTML = `
-      <section class="stats-grid">
+  contenido.innerHTML = `
+    <section class="stats-grid">
 
-        <article class="stat-card">
-          <span>Clientes asignados</span>
-          <strong>0</strong>
-        </article>
+      <article class="stat-card">
+        <span>Clientes asignados</span>
 
-        <article class="stat-card">
-          <span>Cobrado hoy</span>
-          <strong>RD$0.00</strong>
-        </article>
+        <strong id="deliveryHomeClients">
+          0
+        </strong>
+      </article>
 
-        <article class="stat-card">
-          <span>Pendiente hoy</span>
-          <strong>RD$0.00</strong>
-        </article>
+      <article class="stat-card">
+        <span>Cobrado este mes</span>
 
-        <article class="stat-card">
-          <span>Progreso</span>
-          <strong>0%</strong>
-        </article>
+        <strong id="deliveryHomeCollected">
+          RD$0.00
+        </strong>
+      </article>
 
-      </section>
+      <article class="stat-card">
+        <span>Total pendiente</span>
 
-      <section class="content-card">
+        <strong id="deliveryHomePending">
+          RD$0.00
+        </strong>
+      </article>
 
-        <span class="section-label">
-          Resumen
-        </span>
+      <article class="stat-card">
+        <span>Progreso general</span>
 
-        <h2>Actividad del día</h2>
+        <strong id="deliveryHomeProgress">
+          0%
+        </strong>
+      </article>
 
-        <div class="empty-state">
-          <h3>Sin actividad registrada</h3>
+    </section>
+
+    <section class="content-card">
+
+      <div class="card-header">
+
+        <div>
+          <span class="section-label">
+            Deudas asignadas
+          </span>
+
+          <h2>
+            Clientes pendientes
+          </h2>
 
           <p>
-            Aquí aparecerán los pagos y cobros realizados.
+            Revisa rápidamente los préstamos
+            que tienes para cobrar.
           </p>
         </div>
 
-      </section>
-    `;
-  }
+        <button
+          type="button"
+          id="viewDeliveryDebtsButton"
+          class="primary-button"
+        >
+          <i data-lucide="eye"></i>
+          Ver deudas
+        </button>
+
+      </div>
+
+      <div
+        id="deliveryHomeLoans"
+        class="today-clients-list"
+      >
+        <div class="empty-state">
+          <h3>Cargando préstamos...</h3>
+        </div>
+      </div>
+
+    </section>
+  `;
+
+  document
+    .getElementById(
+      "viewDeliveryDebtsButton"
+    )
+    .addEventListener(
+      "click",
+      function () {
+        abrirPantallaDelivery(
+          "cobros"
+        );
+      }
+    );
+
+  cargarInicioDelivery();
+}
 
   if (pagina === "cobros") {
   titulo.textContent = "Clientes por cobrar";
