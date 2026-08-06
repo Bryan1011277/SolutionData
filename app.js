@@ -229,22 +229,6 @@ function mostrarDashboard(usuario) {
 
         </div>
 
-        <div class="sidebar-user">
-
-          <div class="sidebar-user-avatar">
-            <i data-lucide="user"></i>
-          </div>
-
-          <div>
-            <strong>Administrador</strong>
-
-            <span>
-              ${escaparHTML(usuario.email)}
-            </span>
-          </div>
-
-        </div>
-
         <nav class="sidebar-menu">
 
           <button
@@ -296,6 +280,22 @@ function mostrarDashboard(usuario) {
           </button>
 
         </nav>
+
+        <div class="sidebar-user">
+
+          <div class="sidebar-user-avatar">
+            <i data-lucide="user"></i>
+          </div>
+
+          <div>
+            <strong>Administrador</strong>
+
+            <span>
+              ${escaparHTML(usuario.email)}
+            </span>
+          </div>
+
+        </div>
 
         <button
           id="logoutButton"
@@ -428,6 +428,9 @@ function mostrarDashboard(usuario) {
                 type="text"
                 id="clientId"
                 placeholder="000-0000000-0"
+                inputmode="numeric"
+                maxlength="13"
+                required
               />
             </label>
 
@@ -1030,6 +1033,144 @@ function calcularPrestamo() {
     formatoDinero.format(montoCuota);
 }
 
+/*=====================================================
+ VALIDACIÓN DE CLIENTE POR CÉDULA Y NIVEL
+=====================================================*/
+
+function normalizarCedula(cedula) {
+  return String(cedula || "")
+    .replace(/\D/g, "")
+    .trim();
+}
+
+
+async function evaluarNivelCliente(cedula) {
+  const cedulaNormalizada =
+    normalizarCedula(cedula);
+
+  if (cedulaNormalizada.length !== 11) {
+    throw new Error(
+      "Debes escribir una cédula válida de 11 números."
+    );
+  }
+
+  const resultado = await db
+    .collection("loans")
+    .where(
+      "adminId",
+      "==",
+      usuarioActual.uid
+    )
+    .get();
+
+  const prestamosCliente =
+    resultado.docs
+      .map(function (documento) {
+        return {
+          id: documento.id,
+          ...documento.data()
+        };
+      })
+      .filter(function (prestamo) {
+        const cedulaGuardada =
+          prestamo.clientIdNormalized ||
+          prestamo.clientId ||
+          "";
+
+        return (
+          normalizarCedula(cedulaGuardada) ===
+          cedulaNormalizada
+        );
+      });
+
+  const tienePrestamoActivo =
+    prestamosCliente.some(
+      function (prestamo) {
+        return [
+          "activo",
+          "pagado_pendiente_recibo"
+        ].includes(prestamo.status);
+      }
+    );
+
+  if (tienePrestamoActivo) {
+    throw new Error(
+      "Este cliente todavía tiene un préstamo activo."
+    );
+  }
+
+  const prestamosCompletados =
+    prestamosCliente.filter(
+      function (prestamo) {
+        return prestamo.status === "terminado";
+      }
+    ).length;
+
+  const limites = [
+    Number(
+      configuracionMetricas.levels.level1 ||
+      5000
+    ),
+
+    Number(
+      configuracionMetricas.levels.level2 ||
+      8000
+    ),
+
+    Number(
+      configuracionMetricas.levels.level3 ||
+      10000
+    ),
+
+    Number(
+      configuracionMetricas.levels.level4 ||
+      15000
+    ),
+
+    Number(
+      configuracionMetricas.levels.level5 ||
+      20000
+    ),
+
+    Number(
+      configuracionMetricas.levels.level6 ||
+      30000
+    ),
+
+    Number(
+      configuracionMetricas.levels.level7 ||
+      50000
+    )
+  ];
+
+  const indiceNivel =
+    Math.min(
+      prestamosCompletados,
+      limites.length - 1
+    );
+
+  return {
+    cedulaNormalizada:
+      cedulaNormalizada,
+
+    prestamosCompletados:
+      prestamosCompletados,
+
+    numeroPrestamo:
+      prestamosCompletados + 1,
+
+    nivel:
+      indiceNivel + 1,
+
+    limite:
+      limites[indiceNivel],
+
+    montoMinimo:
+      prestamosCompletados === 0
+        ? 2500
+        : 1
+  };
+}
 
 /*=====================================================
  GUARDAR PRÉSTAMO
@@ -1054,6 +1195,14 @@ async function guardarPrestamo(event) {
       .getElementById("capital")
       .value
   ) || 0;
+
+  const cedulaCliente =
+  document
+    .getElementById("clientId")
+    .value
+    .trim();
+
+  let evaluacionCliente;
 
 const interestInput =
   document.getElementById("interest");
@@ -1089,6 +1238,51 @@ const montoCuota =
   cuotas > 0
     ? total / cuotas
     : 0;
+
+try {
+  evaluacionCliente =
+    await evaluarNivelCliente(
+      cedulaCliente
+    );
+
+} catch (error) {
+  mensaje.textContent =
+    error.message;
+
+  return;
+}
+
+
+if (
+  capital <
+  evaluacionCliente.montoMinimo
+) {
+  mensaje.textContent =
+    `El préstamo mínimo para este cliente es ${
+      formatoDinero.format(
+        evaluacionCliente.montoMinimo
+      )
+    }.`;
+
+  return;
+}
+
+
+if (
+  capital >
+  evaluacionCliente.limite
+) {
+  mensaje.textContent =
+    `Este cliente está en el nivel ${
+      evaluacionCliente.nivel
+    } y su límite máximo es ${
+      formatoDinero.format(
+        evaluacionCliente.limite
+      )
+    }.`;
+
+  return;
+}
 
 if (!collectorId) {
   mensaje.textContent =
@@ -1137,10 +1331,19 @@ if (
             .trim(),
 
         clientId:
-          document
-            .getElementById("clientId")
-            .value
-            .trim(),
+          cedulaCliente,
+
+        clientIdNormalized:
+          evaluacionCliente.cedulaNormalizada,
+
+        clientLevel:
+          evaluacionCliente.nivel,
+
+        clientLoanNumber:
+          evaluacionCliente.numeroPrestamo,
+
+        clientLimitAtCreation:
+          evaluacionCliente.limite,
 
         clientAddress:
           document

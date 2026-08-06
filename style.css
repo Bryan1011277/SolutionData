@@ -3076,6 +3076,18 @@ margin-top:15px;
     padding: 12px;
   }
 
+  .sidebar-user {
+  margin: auto 0 12px;
+  padding: 15px;
+}
+
+.sidebar-menu {
+  flex: initial;
+}
+
+.sidebar .logout-button {
+  margin-top: 0;
+}
 
   /*===========================
     CABECERA MÓVIL
@@ -3262,7 +3274,7 @@ margin-top:15px;
   }
 
   .sidebar-menu {
-    flex: 1;
+    flex: initial;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -3317,5 +3329,128 @@ margin-top:15px;
 
   .mobile-app-brand strong {
     font-size: 16px;
+  }
+}
+
+/*=====================================================
+ AJUSTE FINAL DEL MENÚ MÓVIL
+=====================================================*/
+
+@media (max-width: 768px) {
+
+  .sidebar {
+    width: min(90vw, 360px);
+    padding: 22px 18px;
+  }
+
+  .sidebar-brand strong {
+    font-size: 22px;
+    line-height: 1.2;
+  }
+
+  .sidebar-brand span {
+    margin-top: 4px;
+    font-size: 13px;
+  }
+
+  .sidebar-user {
+    padding: 16px;
+    margin: 22px 0;
+  }
+
+  .sidebar-user-avatar {
+    width: 48px;
+    min-width: 48px;
+    height: 48px;
+  }
+
+  .sidebar-user-avatar svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .sidebar-user strong {
+    font-size: 16px;
+  }
+
+  .sidebar-user span {
+    font-size: 12px;
+  }
+
+  .sidebar-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .sidebar .menu-button {
+    width: 100%;
+    min-height: 54px;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 15px;
+    padding: 14px 16px;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: left;
+    border-radius: 15px;
+  }
+
+  .sidebar .menu-button svg {
+    width: 23px;
+    min-width: 23px;
+    height: 23px;
+    flex-shrink: 0;
+  }
+
+  .sidebar .menu-button span {
+    display: inline-block;
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .sidebar .logout-button {
+    min-height: 54px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 15px;
+    padding: 14px 16px;
+    font-size: 16px;
+    border-radius: 15px;
+  }
+
+  .sidebar .logout-button svg {
+    width: 23px;
+    min-width: 23px;
+    height: 23px;
+  }
+
+  .sidebar-close-button {
+    width: 46px;
+    min-width: 46px;
+    height: 46px;
+  }
+
+  .mobile-menu-button {
+    width: 48px;
+    min-width: 48px;
+    height: 48px;
+  }
+
+  .mobile-menu-button svg {
+    width: 26px;
+    height: 26px;
+  }
+
+  .mobile-app-brand strong {
+    font-size: 18px;
+  }
+
+  .mobile-app-brand span {
+    font-size: 13px;
   }
 }
