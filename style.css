@@ -2346,640 +2346,6 @@ text-align:center;
   color: #15803d;
 }
 
-/*=====================================================
-  SOLUTIONDATA — RESPONSIVE FINAL
-  CELULARES Y TABLETS
-=====================================================*/
-
-html,
-body {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
-}
-
-img,
-svg {
-  max-width: 100%;
-}
-
-/*=====================================================
-  TABLET Y CELULAR
-=====================================================*/
-
-@media (max-width: 900px) {
-
-  body {
-    padding-bottom: 88px;
-  }
-
-  .dashboard-layout {
-    display: block;
-    min-height: 100vh;
-  }
-
-  /* Menú convertido en barra inferior */
-
-  .sidebar {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    top: auto;
-    z-index: 1000;
-
-    width: 100%;
-    height: auto;
-    min-height: 74px;
-
-    display: flex;
-    align-items: center;
-    flex-direction: row;
-
-    padding: 8px 10px;
-
-    background:
-      linear-gradient(
-        135deg,
-        #315b49,
-        #234337
-      );
-
-    box-shadow:
-      0 -10px 35px rgba(15, 23, 42, 0.18);
-  }
-
-  .sidebar-brand {
-    display: none;
-  }
-
-  .sidebar-menu {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-
-    overflow-x: auto;
-    overflow-y: hidden;
-
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .sidebar-menu::-webkit-scrollbar {
-    display: none;
-  }
-
-  .menu-button {
-    min-width: 76px;
-    width: auto;
-    height: 58px;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-
-    gap: 4px;
-
-    padding: 7px 9px;
-    border-radius: 13px;
-
-    text-align: center;
-    white-space: nowrap;
-
-    font-size: 10px;
-    font-weight: 700;
-  }
-
-  .menu-button:hover {
-    transform: none;
-  }
-
-  .menu-button.active {
-    background: rgba(255, 255, 255, 0.16);
-    box-shadow: none;
-  }
-
-  .menu-button svg {
-    width: 21px;
-    height: 21px;
-  }
-
-  .logout-button {
-    width: 58px;
-    min-width: 58px;
-    height: 58px;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    margin: 0 0 0 5px;
-    padding: 0;
-    border-radius: 13px;
-  }
-
-  .logout-button span {
-    display: none;
-  }
-
-  .logout-button svg {
-    width: 22px;
-    height: 22px;
-  }
-
-  /* Contenido principal */
-
-  .main-content {
-    width: 100%;
-    min-width: 0;
-    padding: 22px 18px 30px;
-  }
-
-  .topbar {
-    align-items: flex-start;
-    margin-bottom: 20px;
-  }
-
-  .topbar h1 {
-    font-size: clamp(28px, 6vw, 36px);
-  }
-
-  .topbar p {
-    max-width: 100%;
-    overflow-wrap: anywhere;
-  }
-
-  .topbar .primary-button {
-    flex-shrink: 0;
-  }
-
-  /* Dashboard */
-
-  .welcome-dashboard {
-    padding: 19px;
-  }
-
-  .welcome-dashboard h2 {
-    font-size: 24px;
-  }
-
-  .home-stats-grid {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
-    gap: 13px;
-  }
-
-  .home-stat-card {
-    min-width: 0;
-    min-height: 118px;
-    padding: 17px;
-  }
-
-  .home-stat-icon {
-    width: 45px;
-    height: 45px;
-    border-radius: 13px;
-  }
-
-  .home-stat-card strong {
-    font-size: clamp(20px, 4vw, 27px);
-    overflow-wrap: anywhere;
-  }
-
-  .home-content-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .home-panel {
-    min-width: 0;
-    min-height: auto;
-    padding: 19px;
-  }
-
-  /* Tarjetas generales */
-
-  .content-card {
-    width: 100%;
-    min-width: 0;
-    min-height: auto;
-    padding: 20px;
-  }
-
-  .card-header {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .search-input {
-    width: 100%;
-    max-width: none;
-  }
-
-  .stats-grid,
-  .levels-grid {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
-  }
-
-  /* Préstamos */
-
-  .loan-card {
-    width: 100%;
-    min-width: 0;
-    padding: 18px;
-  }
-
-  .loan-values {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
-  }
-
-  .loan-values > div {
-    min-width: 0;
-  }
-
-  .loan-values strong {
-    overflow-wrap: anywhere;
-  }
-
-  .loan-actions {
-    flex-wrap: wrap;
-  }
-
-  /* Métricas */
-
-  .metrics-section {
-    padding: 19px;
-  }
-
-  .metrics-section-title {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .metrics-grid,
-  .editable-levels {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
-  }
-
-  /* Panel del mensajero */
-
-  .delivery-client-card {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .delivery-loan-financial-grid {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
-  }
-
-  /* Modales */
-
-  .loan-modal {
-    align-items: flex-end;
-    padding: 10px;
-  }
-
-  .loan-modal-card,
-  .delivery-payment-modal-card {
-    width: 100%;
-    max-width: none;
-
-    max-height: calc(100dvh - 20px);
-
-    padding: 22px 18px;
-
-    border-radius: 24px 24px 16px 16px;
-  }
-}
-
-/*=====================================================
-  CELULARES
-=====================================================*/
-
-@media (max-width: 600px) {
-
-  body {
-    padding-bottom: 82px;
-  }
-
-  .main-content {
-    padding: 17px 13px 25px;
-  }
-
-  .sidebar {
-    min-height: 70px;
-    padding: 7px 6px;
-  }
-
-  .menu-button {
-    min-width: 67px;
-    height: 55px;
-    padding: 6px;
-    font-size: 9px;
-  }
-
-  .menu-button svg {
-    width: 20px;
-    height: 20px;
-  }
-
-  .logout-button {
-    width: 53px;
-    min-width: 53px;
-    height: 55px;
-  }
-
-  /* Encabezado */
-
-  .topbar {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 13px;
-  }
-
-  .topbar h1 {
-    margin-bottom: 4px;
-    font-size: 29px;
-  }
-
-  .topbar .primary-button {
-    width: 100%;
-    min-height: 48px;
-  }
-
-  /* Login */
-
-  .login-page {
-    padding: 15px;
-  }
-
-  .login-card {
-    padding: 28px 20px;
-    border-radius: 22px;
-  }
-
-  .brand h1 {
-    font-size: 31px;
-  }
-
-  /* Bienvenida */
-
-  .welcome-dashboard {
-    padding: 17px;
-    border-radius: 17px;
-  }
-
-  .welcome-dashboard h2 {
-    font-size: 22px;
-  }
-
-  /* Estadísticas */
-
-  .home-stats-grid,
-  .stats-grid,
-  .levels-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .home-stat-card {
-    min-height: auto;
-    padding: 17px;
-  }
-
-  .home-stat-card strong {
-    font-size: 25px;
-  }
-
-  /* Paneles */
-
-  .home-panel,
-  .content-card {
-    padding: 16px;
-    border-radius: 17px;
-  }
-
-  .home-panel-header {
-    align-items: flex-start;
-  }
-
-  .activity-item {
-    grid-template-columns:
-      auto minmax(0, 1fr);
-  }
-
-  .activity-amount {
-    grid-column: 2;
-    white-space: normal;
-  }
-
-  /* Tarjetas de clientes */
-
-  .today-client-top {
-    grid-template-columns:
-      42px minmax(0, 1fr);
-  }
-
-  .client-pending-badge {
-    grid-column: 1 / -1;
-    width: max-content;
-    margin-left: 53px;
-  }
-
-  .client-payment-data {
-    grid-template-columns: 1fr;
-  }
-
-  /* Préstamos */
-
-  .loan-card {
-    padding: 16px;
-    border-radius: 16px;
-  }
-
-  .loan-card-header {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .loan-values {
-    grid-template-columns: 1fr;
-  }
-
-  .loan-actions {
-    width: 100%;
-    display: grid;
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
-  }
-
-  .loan-action-button {
-    width: 100%;
-    min-height: 43px;
-  }
-
-  /* Formularios */
-
-  .loan-form-grid,
-  .loan-calculation {
-    grid-template-columns: 1fr;
-  }
-
-  .loan-form-actions {
-    align-items: stretch;
-    flex-direction: column-reverse;
-  }
-
-  .loan-form-actions button {
-    width: 100%;
-    min-height: 48px;
-  }
-
-  input,
-  select,
-  textarea {
-    min-height: 48px;
-    font-size: 16px;
-  }
-
-  /* Métricas */
-
-  .metrics-page {
-    gap: 18px;
-  }
-
-  .metrics-section {
-    padding: 16px;
-    border-radius: 17px;
-  }
-
-  .metrics-grid,
-  .editable-levels {
-    grid-template-columns: 1fr;
-  }
-
-  .metric-input-card,
-  .editable-level-card {
-    padding: 16px;
-  }
-
-  /* Delivery */
-
-  .delivery-client-card {
-    padding: 16px;
-    border-radius: 17px;
-  }
-
-  .delivery-client-header {
-    flex-direction: column;
-  }
-
-  .delivery-client-profile {
-    width: 100%;
-  }
-
-  .delivery-client-information {
-    overflow: hidden;
-  }
-
-  .delivery-client-information p {
-    overflow-wrap: anywhere;
-  }
-
-  .delivery-pay-button {
-    width: 100%;
-    min-height: 48px;
-  }
-
-  .delivery-pay-button span {
-    display: inline;
-  }
-
-  .delivery-loan-financial-grid {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
-  }
-
-  .delivery-loan-financial-grid article {
-    min-width: 0;
-    padding: 13px;
-  }
-
-  .delivery-loan-financial-grid strong {
-    font-size: 15px;
-    overflow-wrap: anywhere;
-  }
-
-  .delivery-loan-footer {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 9px;
-  }
-
-  /* Modal de pago */
-
-  .delivery-payment-header {
-    grid-template-columns:
-      43px minmax(0, 1fr) 40px;
-  }
-
-  .delivery-payment-icon {
-    width: 43px;
-    height: 43px;
-    border-radius: 13px;
-  }
-
-  .delivery-payment-header h2 {
-    font-size: 21px;
-  }
-
-  .delivery-payment-summary {
-    grid-template-columns: 1fr;
-  }
-
-  .delivery-payment-actions {
-    flex-direction: column-reverse;
-  }
-
-  .delivery-payment-actions button {
-    width: 100%;
-    min-height: 48px;
-  }
-}
-
-/*=====================================================
-  CELULARES MUY PEQUEÑOS
-=====================================================*/
-
-@media (max-width: 380px) {
-
-  .main-content {
-    padding-left: 10px;
-    padding-right: 10px;
-  }
-
-  .menu-button {
-    min-width: 62px;
-  }
-
-  .home-stat-card {
-    align-items: flex-start;
-  }
-
-  .delivery-loan-financial-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .loan-actions {
-    grid-template-columns: 1fr;
-  }
-}
-
 .delivery-receipt{
 
 background:#fff;
@@ -3593,5 +2959,320 @@ margin-top:15px;
   .sidebar-user span {
     max-width: 190px;
     font-size: 10px;
+  }
+}
+
+/*=====================================================
+ PANEL DEL MENSAJERO — MÓVIL DEFINITIVO
+=====================================================*/
+
+@media (max-width: 768px) {
+
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    overflow-x: hidden;
+  }
+
+  body {
+    padding-bottom: 0 !important;
+  }
+
+  #deliveryDashboardLayout {
+    display: block !important;
+    grid-template-columns: none !important;
+
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 100vh !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #deliveryMainContent {
+    position: relative !important;
+
+    display: block !important;
+
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #deliverySidebar {
+    position: fixed !important;
+
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: auto !important;
+
+    z-index: 2001 !important;
+
+    width: min(86vw, 310px) !important;
+    max-width: 310px !important;
+
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+
+    padding: 18px 16px !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+
+    transform: translate3d(-110%, 0, 0) !important;
+
+    transition:
+      transform 0.25s ease !important;
+
+    box-shadow:
+      16px 0 40px rgba(0, 0, 0, 0.24) !important;
+  }
+
+  #deliverySidebar.sidebar-open {
+    transform: translate3d(0, 0, 0) !important;
+  }
+
+  #deliverySidebar .sidebar-menu {
+    display: flex !important;
+    flex-direction: column !important;
+
+    width: 100% !important;
+    grid-template-columns: none !important;
+
+    gap: 8px !important;
+  }
+
+  #deliverySidebar .menu-button {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 52px !important;
+
+    gap: 13px !important;
+
+    padding: 13px 14px !important;
+
+    font-size: 15px !important;
+    text-align: left !important;
+  }
+
+  #deliverySidebar .menu-button svg {
+    width: 21px !important;
+    min-width: 21px !important;
+    height: 21px !important;
+  }
+
+  #deliverySidebar .menu-button span {
+    display: inline !important;
+    font-size: 15px !important;
+  }
+
+  #deliverySidebar .logout-button {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+
+    width: 100% !important;
+
+    gap: 13px !important;
+
+    margin-top: auto !important;
+    padding: 13px 14px !important;
+  }
+
+  #deliverySidebarOverlay {
+    position: fixed !important;
+    inset: 0 !important;
+
+    z-index: 2000 !important;
+
+    display: block !important;
+
+    background:
+      rgba(8, 25, 18, 0.6) !important;
+
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+
+    transition:
+      opacity 0.25s ease,
+      visibility 0.25s ease;
+  }
+
+  #deliverySidebarOverlay.sidebar-overlay-visible {
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+
+  #deliveryMainContent .mobile-app-header {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 900 !important;
+
+    display: flex !important;
+    align-items: center !important;
+
+    width: 100% !important;
+
+    gap: 12px !important;
+
+    margin: 0 !important;
+    padding: 11px 14px !important;
+
+    background: #ffffff !important;
+    border-bottom: 1px solid #dce8e1 !important;
+  }
+
+  #deliveryMainContent .mobile-menu-button {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 !important;
+
+    border: 0 !important;
+    border-radius: 12px !important;
+
+    color: #ffffff !important;
+    background: #315b49 !important;
+  }
+
+  #deliveryMainContent .mobile-app-brand {
+    display: block !important;
+    min-width: 0 !important;
+  }
+
+  #deliveryMainContent .mobile-app-brand strong {
+    display: block !important;
+
+    color: #264b3c !important;
+    font-size: 17px !important;
+  }
+
+  #deliveryMainContent .mobile-app-brand span {
+    display: block !important;
+
+    margin-top: 2px !important;
+
+    color: #75837d !important;
+    font-size: 11px !important;
+  }
+
+  #deliveryMainContent .topbar {
+    display: block !important;
+
+    width: 100% !important;
+
+    margin: 0 !important;
+    padding: 20px 15px 10px !important;
+  }
+
+  #deliveryMainContent .topbar h1 {
+    font-size: 28px !important;
+  }
+
+  #deliveryPageContent {
+    display: block !important;
+
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 12px 14px 30px !important;
+  }
+
+  #deliveryPageContent .stats-grid {
+    display: grid !important;
+
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr)) !important;
+
+    width: 100% !important;
+
+    gap: 12px !important;
+  }
+
+  #deliveryPageContent .stat-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 108px !important;
+
+    padding: 14px 12px !important;
+  }
+
+  #deliveryPageContent .stat-card strong {
+    display: block !important;
+
+    font-size: 18px !important;
+
+    overflow-wrap: anywhere !important;
+  }
+
+  #deliveryPageContent .content-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    margin-top: 14px !important;
+    padding: 17px 14px !important;
+  }
+
+  #deliveryPageContent .card-header {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+
+    gap: 13px !important;
+  }
+
+  #viewDeliveryDebtsButton {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  #deliveryPageContent .today-clients-list,
+  #deliveryPageContent .loans-list {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+
+    width: 100% !important;
+  }
+
+  #deliveryPageContent .today-client-card,
+  #deliveryPageContent .loan-card,
+  #deliveryPageContent .delivery-client-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+  }
+}
+
+@media (max-width: 390px) {
+
+  #deliveryPageContent .stats-grid {
+    grid-template-columns: 1fr !important;
   }
 }

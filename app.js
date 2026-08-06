@@ -204,7 +204,10 @@ function mostrarDashboard(usuario) {
       class="sidebar-overlay"
     ></div>
 
-    <div class="dashboard-layout">
+    <div
+      id="deliveryDashboardLayout"
+      class="dashboard-layout"
+    >
 
       <aside
         id="mainSidebar"
@@ -315,7 +318,10 @@ function mostrarDashboard(usuario) {
 
       </aside>
 
-      <main class="main-content">
+      <main
+        id="deliveryMainContent"
+        class="main-content"
+      >
 
         <header class="mobile-app-header">
 
@@ -5421,14 +5427,39 @@ function mostrarPanelDelivery(usuario) {
   usuarioActual = usuario;
 
   app.innerHTML = `
-    <div class="dashboard-layout">
+  <div
+    id="deliverySidebarOverlay"
+    class="sidebar-overlay"
+  ></div>
 
-      <aside class="sidebar">
+  <div
+    id="deliveryDashboardLayout"
+    class="dashboard-layout"
+  >
 
-        <div class="sidebar-brand">
-          <strong>SolutionData</strong>
-          <span>Panel del mensajero</span>
-        </div>
+    <aside
+      id="deliverySidebar"
+      class="sidebar"
+    >
+>
+
+  <div class="sidebar-mobile-header">
+
+    <div class="sidebar-brand">
+      <strong>SolutionData</strong>
+      <span>Panel del mensajero</span>
+    </div>
+
+    <button
+      type="button"
+      id="closeDeliverySidebarButton"
+      class="sidebar-close-button"
+      aria-label="Cerrar menú"
+    >
+      <i data-lucide="x"></i>
+    </button>
+
+  </div>
 
         <nav class="sidebar-menu">
 
@@ -5478,7 +5509,30 @@ function mostrarPanelDelivery(usuario) {
 
       <main class="main-content">
 
-        <header class="topbar">
+  <header class="mobile-app-header">
+
+    <button
+      type="button"
+      id="openDeliverySidebarButton"
+      class="mobile-menu-button"
+      aria-label="Abrir menú"
+    >
+      <i data-lucide="menu"></i>
+    </button>
+
+    <div class="mobile-app-brand">
+
+      <strong>SolutionData</strong>
+
+      <span>
+        Panel del mensajero
+      </span>
+
+    </div>
+
+  </header>
+
+  <header class="topbar">
 
           <div>
             <span class="section-label">
@@ -5726,27 +5780,97 @@ function mostrarPanelDelivery(usuario) {
 
   `;
 
+  const deliverySidebar =
+  document.getElementById(
+    "deliverySidebar"
+  );
+
+const deliveryOverlay =
+  document.getElementById(
+    "deliverySidebarOverlay"
+  );
+
+const botonAbrirDelivery =
+  document.getElementById(
+    "openDeliverySidebarButton"
+  );
+
+const botonCerrarDelivery =
+  document.getElementById(
+    "closeDeliverySidebarButton"
+  );
+
+
+function abrirMenuDelivery() {
+  deliverySidebar.classList.add(
+    "sidebar-open"
+  );
+
+  deliveryOverlay.classList.add(
+    "sidebar-overlay-visible"
+  );
+
+  document.body.classList.add(
+    "menu-mobile-open"
+  );
+}
+
+
+function cerrarMenuDelivery() {
+  deliverySidebar.classList.remove(
+    "sidebar-open"
+  );
+
+  deliveryOverlay.classList.remove(
+    "sidebar-overlay-visible"
+  );
+
+  document.body.classList.remove(
+    "menu-mobile-open"
+  );
+}
+
+
+botonAbrirDelivery.addEventListener(
+  "click",
+  abrirMenuDelivery
+);
+
+botonCerrarDelivery.addEventListener(
+  "click",
+  cerrarMenuDelivery
+);
+
+deliveryOverlay.addEventListener(
+  "click",
+  cerrarMenuDelivery
+);
+
   document
     .getElementById("deliveryLogoutButton")
     .addEventListener(
       "click",
       async function () {
+        cerrarMenuDelivery();
+
         await auth.signOut();
       }
     );
 
   document
-    .querySelectorAll("[data-delivery-page]")
-    .forEach(function (button) {
-      button.addEventListener(
-        "click",
-        function () {
-          abrirPantallaDelivery(
-            button.dataset.deliveryPage
-          );
-        }
-      );
-    });
+  .querySelectorAll("[data-delivery-page]")
+  .forEach(function (button) {
+    button.addEventListener(
+      "click",
+      function () {
+        abrirPantallaDelivery(
+          button.dataset.deliveryPage
+        );
+
+        cerrarMenuDelivery();
+      }
+    );
+  });
 
   abrirPantallaDelivery("inicio");
 
