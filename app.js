@@ -5138,9 +5138,29 @@ async function abrirModalPagoDelivery(prestamoId) {
         )
       );
 
-    document.getElementById(
-      "deliveryPaymentAmount"
-    ).value = "";
+      const cuotaSugerida =
+  Math.min(
+    Number(
+      prestamoSeleccionado.installmentAmount || 0
+    ),
+    Number(
+      prestamoSeleccionado.pendingAmount || 0
+    )
+  );
+
+document.getElementById(
+  "deliveryPaymentSuggestedText"
+).textContent =
+  formatoDinero.format(
+    cuotaSugerida
+  );
+
+document.getElementById(
+  "deliveryPaymentAmount"
+).value =
+  cuotaSugerida > 0
+    ? cuotaSugerida.toFixed(2)
+    : "";
 
     document.getElementById(
       "deliveryPaymentMessage"
@@ -6002,7 +6022,7 @@ async function eliminarHistorialDelivery() {
   }
 
   const segundaConfirmacion = confirm(
-    "Confirma nuevamente: todos tus recibos y movimientos serán eliminados permanentemente."
+    "Confirma nuevamente: se eliminarán los movimientos y recibos antiguos."
   );
 
   if (!segundaConfirmacion) {
@@ -6020,7 +6040,7 @@ async function eliminarHistorialDelivery() {
   }
 
   try {
-    const resultado = await db
+    const resultadoPagos = await db
       .collection("payments")
       .where(
         "collectorId",
@@ -6029,43 +6049,94 @@ async function eliminarHistorialDelivery() {
       )
       .get();
 
-    if (resultado.empty) {
-      alert(
-        "No tienes movimientos para eliminar."
-      );
+    const resultadoPrestamos = await db
+      .collection("loans")
+      .where(
+        "collectorId",
+        "==",
+        usuarioActual.uid
+      )
+      .get();
 
-      return;
-    }
+    const limiteLote = 400;
 
-    const documentos =
-      resultado.docs;
+    const operaciones = [];
 
-    const limiteLote = 450;
+    resultadoPagos.docs.forEach(
+      function (documento) {
+        operaciones.push({
+          tipo: "delete",
+          referencia: documento.ref
+        });
+      }
+    );
+
+    resultadoPrestamos.docs.forEach(
+      function (documento) {
+        operaciones.push({
+          tipo: "update",
+          referencia: documento.ref
+        });
+      }
+    );
 
     for (
       let inicio = 0;
-      inicio < documentos.length;
+      inicio < operaciones.length;
       inicio += limiteLote
     ) {
       const lote = db.batch();
 
-      documentos
+      operaciones
         .slice(
           inicio,
           inicio + limiteLote
         )
-        .forEach(function (documento) {
-          lote.delete(documento.ref);
+        .forEach(function (operacion) {
+          if (operacion.tipo === "delete") {
+            lote.delete(
+              operacion.referencia
+            );
+          } else {
+            lote.update(
+              operacion.referencia,
+              {
+                lastPaymentId:
+                  firebase.firestore.FieldValue.delete(),
+
+                lastPaymentAmount:
+                  firebase.firestore.FieldValue.delete(),
+
+                lastPaymentDate:
+                  firebase.firestore.FieldValue.delete(),
+
+                receiptPending:
+                  false,
+
+                receiptSent:
+                  false
+              }
+            );
+          }
         });
 
       await lote.commit();
     }
 
     alert(
-      "Historial eliminado correctamente."
+      "Historial y recibos antiguos eliminados correctamente."
     );
 
     await cargarHistorialDelivery();
+
+    const contenedorPrestamos =
+      document.getElementById(
+        "deliveryLoansContainer"
+      );
+
+    if (contenedorPrestamos) {
+      await cargarPrestamosDelivery();
+    }
 
   } catch (error) {
     console.error(
