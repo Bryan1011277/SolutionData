@@ -1084,14 +1084,21 @@ async function evaluarNivelCliente(cedula) {
       });
 
   const tienePrestamoActivo =
-    prestamosCliente.some(
-      function (prestamo) {
-        return [
-          "activo",
-          "pagado_pendiente_recibo"
-        ].includes(prestamo.status);
-      }
-    );
+  prestamosCliente.some(
+    function (prestamo) {
+
+      const saldoPendiente =
+        Number(
+          prestamo.pendingAmount || 0
+        );
+
+      return (
+        prestamo.status === "activo" &&
+        saldoPendiente > 0
+      );
+
+    }
+  );
 
   if (tienePrestamoActivo) {
     throw new Error(
@@ -1100,11 +1107,28 @@ async function evaluarNivelCliente(cedula) {
   }
 
   const prestamosCompletados =
-    prestamosCliente.filter(
-      function (prestamo) {
-        return prestamo.status === "terminado";
-      }
-    ).length;
+  prestamosCliente.filter(
+    function (prestamo) {
+
+      const saldoPendiente =
+        Number(
+          prestamo.pendingAmount || 0
+        );
+
+      return (
+        prestamo.status === "terminado" ||
+        (
+          saldoPendiente <= 0 &&
+          ![
+            "cancelado",
+            "eliminado",
+            "perdido"
+          ].includes(prestamo.status)
+        )
+      );
+
+    }
+  ).length;
 
   const limites = [
     Number(
