@@ -4902,7 +4902,10 @@ async function cargarPrestamosDelivery() {
               const pendienteRecibo =
                 prestamo.status === "pagado_pendiente_recibo";
 
-          return `
+              const tieneRecibo =
+                Boolean(prestamo.lastPaymentId);
+
+              return `
   <article class="loan-card delivery-client-card">
 
     <div class="delivery-client-header">
