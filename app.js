@@ -4952,6 +4952,15 @@ async function cargarPrestamosDelivery() {
 
       <div class="delivery-client-actions">
 
+      <button
+  type="button"
+  class="delivery-reset-payment-button"
+  onclick="reiniciarPagosPrestamoPrueba('${prestamo.id}')"
+>
+  <i data-lucide="rotate-ccw"></i>
+  <span>Borrar pago de prueba</span>
+</button>
+
   ${
     tieneRecibo
       ? `
@@ -5157,10 +5166,7 @@ document.getElementById(
 
 document.getElementById(
   "deliveryPaymentAmount"
-).value =
-  cuotaSugerida > 0
-    ? cuotaSugerida.toFixed(2)
-    : "";
+).value = "";
 
     document.getElementById(
       "deliveryPaymentMessage"
@@ -5598,6 +5604,155 @@ async function marcarPrestamoDeliveryCompletado() {
     if (window.lucide) {
       lucide.createIcons();
     }
+  }
+}
+
+async function reiniciarPagosPrestamoPrueba(
+  prestamoId
+) {
+  const confirmar = confirm(
+    "¿Deseas borrar todos los pagos de prueba de este préstamo y devolverlo a su estado inicial?"
+  );
+
+  if (!confirmar) {
+    return;
+  }
+
+  const segundaConfirmacion = confirm(
+    "Se eliminarán los recibos, el monto pagado y el progreso de este préstamo."
+  );
+
+  if (!segundaConfirmacion) {
+    return;
+  }
+
+  try {
+    const referenciaPrestamo =
+      db
+        .collection("loans")
+        .doc(prestamoId);
+
+    const documentoPrestamo =
+      await referenciaPrestamo.get();
+
+    if (!documentoPrestamo.exists) {
+      alert(
+        "No se encontró el préstamo."
+      );
+
+      return;
+    }
+
+    const prestamo =
+      documentoPrestamo.data();
+
+    const resultadoPagos =
+      await db
+        .collection("payments")
+        .where(
+          "loanId",
+          "==",
+          prestamoId
+        )
+        .where(
+          "collectorId",
+          "==",
+          usuarioActual.uid
+        )
+        .get();
+
+    const operaciones = [];
+
+    resultadoPagos.docs.forEach(
+      function (documento) {
+        operaciones.push(
+          documento.ref
+        );
+      }
+    );
+
+    const limiteLote = 400;
+
+    for (
+      let inicio = 0;
+      inicio < operaciones.length;
+      inicio += limiteLote
+    ) {
+      const loteEliminar =
+        db.batch();
+
+      operaciones
+        .slice(
+          inicio,
+          inicio + limiteLote
+        )
+        .forEach(function (referencia) {
+          loteEliminar.delete(
+            referencia
+          );
+        });
+
+      await loteEliminar.commit();
+    }
+
+    await referenciaPrestamo.update({
+      paidAmount:
+        0,
+
+      pendingAmount:
+        Number(
+          prestamo.totalAmount || 0
+        ),
+
+      paidInstallments:
+        0,
+
+      progress:
+        0,
+
+      status:
+        "activo",
+
+      paidAt:
+        null,
+
+      completedAt:
+        null,
+
+      receiptPending:
+        false,
+
+      receiptSent:
+        false,
+
+      lastPaymentId:
+        firebase.firestore.FieldValue.delete(),
+
+      lastPaymentAmount:
+        firebase.firestore.FieldValue.delete(),
+
+      lastPaymentDate:
+        firebase.firestore.FieldValue.delete(),
+
+      receiptSentAt:
+        firebase.firestore.FieldValue.delete()
+    });
+
+    alert(
+      "Pago de prueba eliminado completamente."
+    );
+
+    await cargarPrestamosDelivery();
+
+  } catch (error) {
+    console.error(
+      "Error borrando pago de prueba:",
+      error
+    );
+
+    alert(
+      "No se pudo borrar el pago de prueba."
+    );
   }
 }
 
