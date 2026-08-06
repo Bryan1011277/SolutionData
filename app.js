@@ -4952,15 +4952,6 @@ async function cargarPrestamosDelivery() {
 
       <div class="delivery-client-actions">
 
-      <button
-  type="button"
-  class="delivery-reset-payment-button"
-  onclick="reiniciarPagosPrestamoPrueba('${prestamo.id}')"
->
-  <i data-lucide="rotate-ccw"></i>
-  <span>Borrar pago de prueba</span>
-</button>
-
   ${
     tieneRecibo
       ? `
@@ -5607,155 +5598,6 @@ async function marcarPrestamoDeliveryCompletado() {
   }
 }
 
-async function reiniciarPagosPrestamoPrueba(
-  prestamoId
-) {
-  const confirmar = confirm(
-    "¿Deseas borrar todos los pagos de prueba de este préstamo y devolverlo a su estado inicial?"
-  );
-
-  if (!confirmar) {
-    return;
-  }
-
-  const segundaConfirmacion = confirm(
-    "Se eliminarán los recibos, el monto pagado y el progreso de este préstamo."
-  );
-
-  if (!segundaConfirmacion) {
-    return;
-  }
-
-  try {
-    const referenciaPrestamo =
-      db
-        .collection("loans")
-        .doc(prestamoId);
-
-    const documentoPrestamo =
-      await referenciaPrestamo.get();
-
-    if (!documentoPrestamo.exists) {
-      alert(
-        "No se encontró el préstamo."
-      );
-
-      return;
-    }
-
-    const prestamo =
-      documentoPrestamo.data();
-
-    const resultadoPagos =
-      await db
-        .collection("payments")
-        .where(
-          "loanId",
-          "==",
-          prestamoId
-        )
-        .where(
-          "collectorId",
-          "==",
-          usuarioActual.uid
-        )
-        .get();
-
-    const operaciones = [];
-
-    resultadoPagos.docs.forEach(
-      function (documento) {
-        operaciones.push(
-          documento.ref
-        );
-      }
-    );
-
-    const limiteLote = 400;
-
-    for (
-      let inicio = 0;
-      inicio < operaciones.length;
-      inicio += limiteLote
-    ) {
-      const loteEliminar =
-        db.batch();
-
-      operaciones
-        .slice(
-          inicio,
-          inicio + limiteLote
-        )
-        .forEach(function (referencia) {
-          loteEliminar.delete(
-            referencia
-          );
-        });
-
-      await loteEliminar.commit();
-    }
-
-    await referenciaPrestamo.update({
-      paidAmount:
-        0,
-
-      pendingAmount:
-        Number(
-          prestamo.totalAmount || 0
-        ),
-
-      paidInstallments:
-        0,
-
-      progress:
-        0,
-
-      status:
-        "activo",
-
-      paidAt:
-        null,
-
-      completedAt:
-        null,
-
-      receiptPending:
-        false,
-
-      receiptSent:
-        false,
-
-      lastPaymentId:
-        firebase.firestore.FieldValue.delete(),
-
-      lastPaymentAmount:
-        firebase.firestore.FieldValue.delete(),
-
-      lastPaymentDate:
-        firebase.firestore.FieldValue.delete(),
-
-      receiptSentAt:
-        firebase.firestore.FieldValue.delete()
-    });
-
-    alert(
-      "Pago de prueba eliminado completamente."
-    );
-
-    await cargarPrestamosDelivery();
-
-  } catch (error) {
-    console.error(
-      "Error borrando pago de prueba:",
-      error
-    );
-
-    alert(
-      "No se pudo borrar el pago de prueba."
-    );
-  }
-}
-
 async function guardarPagoDelivery(event) {
   event.preventDefault();
 
@@ -5769,213 +5611,265 @@ async function guardarPagoDelivery(event) {
       "saveDeliveryPaymentButton"
     );
 
+  const campoMonto =
+    document.getElementById(
+      "deliveryPaymentAmount"
+    );
+
   const monto =
-    Number(
-      document.getElementById(
-        "deliveryPaymentAmount"
-      ).value
-    ) || 0;
+    Number(campoMonto.value) || 0;
 
   if (!prestamoSeleccionado) {
+    mensaje.style.color = "#b42318";
     mensaje.textContent =
       "No se encontró el préstamo seleccionado.";
 
     return;
   }
 
-  const saldoPendiente =
-    Number(
-      prestamoSeleccionado.pendingAmount || 0
-    );
-
   if (monto <= 0) {
+    mensaje.style.color = "#b42318";
     mensaje.textContent =
-      "Escribe un monto válido.";
+      "Escribe el monto recibido.";
 
-    return;
-  }
-
-  if (monto > saldoPendiente) {
-    mensaje.textContent =
-      "El pago no puede ser mayor que el saldo pendiente.";
+    campoMonto.focus();
 
     return;
   }
 
   boton.disabled = true;
   boton.textContent = "Aplicando...";
-
-  const nuevoPagado =
-  Number(
-    prestamoSeleccionado.paidAmount || 0
-  ) + monto;
-
-const nuevoPendiente =
-  saldoPendiente - monto;
-
-  const prestamoCompletado =
-  nuevoPendiente <= 0;
-
-const nuevoProgreso =
-  Number(
-    prestamoSeleccionado.totalAmount || 0
-  ) > 0
-    ? Math.round(
-        (
-          nuevoPagado /
-          Number(
-            prestamoSeleccionado.totalAmount
-          )
-        ) * 100
-      )
-    : 100;
+  mensaje.textContent = "";
 
   try {
+    const referenciaPrestamo =
+      db
+        .collection("loans")
+        .doc(prestamoSeleccionado.id);
 
-  const referenciaPrestamo =
-  db
-    .collection("loans")
-    .doc(prestamoSeleccionado.id);
+    const referenciaPago =
+      db
+        .collection("payments")
+        .doc();
 
-const referenciaPago =
-  db
-    .collection("payments")
-    .doc();
+    await db.runTransaction(
+      async function (transaccion) {
+        const documentoPrestamo =
+          await transaccion.get(
+            referenciaPrestamo
+          );
 
-const lote =
-  db.batch();
+        if (!documentoPrestamo.exists) {
+          throw new Error(
+            "No se encontró el préstamo."
+          );
+        }
 
-lote.update(
-  referenciaPrestamo,
-  {
-    paidAmount:
-      nuevoPagado,
+        const prestamoActual =
+          documentoPrestamo.data();
 
-    pendingAmount:
-      Math.max(nuevoPendiente, 0),
+        const saldoPendiente =
+          Number(
+            prestamoActual.pendingAmount || 0
+          );
 
-    progress:
-      prestamoCompletado
-        ? 100
-        : nuevoProgreso,
+        const totalPrestamo =
+          Number(
+            prestamoActual.totalAmount || 0
+          );
 
-    status:
-      prestamoCompletado
-    ? "pagado_pendiente_recibo"
-    : "activo",
+        const pagadoAnterior =
+          Number(
+            prestamoActual.paidAmount || 0
+          );
 
-    paidAt:
-      prestamoCompletado
-    ? firebase.firestore.FieldValue.serverTimestamp()
-    : null,
+        if (saldoPendiente <= 0) {
+          throw new Error(
+            "Este préstamo ya está completamente pagado."
+          );
+        }
 
-    receiptAvailableUntil:
-      null,
+        if (monto > saldoPendiente) {
+          throw new Error(
+            `El pago no puede superar el saldo pendiente de ${
+              formatoDinero.format(
+                saldoPendiente
+              )
+            }.`
+          );
+        }
 
-    completedAt:
-      null,
+        const nuevoPagado =
+          Math.min(
+            pagadoAnterior + monto,
+            totalPrestamo
+          );
 
-    lastPaymentId:
-      referenciaPago.id,
+        const nuevoPendiente =
+          Math.max(
+            saldoPendiente - monto,
+            0
+          );
 
-    lastPaymentAmount:
-      monto,
+        const prestamoCompletado =
+          nuevoPendiente <= 0;
 
-    lastPaymentDate:
-  firebase.firestore.FieldValue.serverTimestamp(),
+        const nuevoProgreso =
+          totalPrestamo > 0
+            ? Math.min(
+                Math.round(
+                  (
+                    nuevoPagado /
+                    totalPrestamo
+                  ) * 100
+                ),
+                100
+              )
+            : 0;
 
-    receiptPending:
-      true,
+        const cuotasPagadas =
+          Number(
+            prestamoActual.paidInstallments || 0
+          ) + 1;
 
-    receiptSent:
-      false
-  }
-);
+        const fechaServidor =
+          firebase
+            .firestore
+            .FieldValue
+            .serverTimestamp();
 
-lote.set(
-  referenciaPago,
-  {
-    paymentId:
-      referenciaPago.id,
+        transaccion.update(
+          referenciaPrestamo,
+          {
+            paidAmount:
+              nuevoPagado,
 
-    loanId:
-      prestamoSeleccionado.id,
+            pendingAmount:
+              nuevoPendiente,
 
-    adminId:
-      prestamoSeleccionado.adminId,
+            paidInstallments:
+              cuotasPagadas,
 
-    adminEmail:
-      prestamoSeleccionado.adminEmail || "",
+            progress:
+              prestamoCompletado
+                ? 100
+                : nuevoProgreso,
 
-    clientName:
-      prestamoSeleccionado.clientName || "",
+            status:
+              prestamoCompletado
+                ? "pagado_pendiente_recibo"
+                : "activo",
 
-    clientPhone:
-      prestamoSeleccionado.clientPhone || "",
+            paidAt:
+              prestamoCompletado
+                ? fechaServidor
+                : null,
 
-    collectorId:
-      usuarioActual.uid,
+            completedAt:
+              null,
 
-    collectorName:
-      prestamoSeleccionado.collectorName
-      || usuarioActual.email
-      || "Mensajero",
+            lastPaymentId:
+              referenciaPago.id,
 
-    amount:
-      monto,
+            lastPaymentAmount:
+              monto,
 
-    previousBalance:
-      saldoPendiente,
+            lastPaymentDate:
+              fechaServidor,
 
-    newBalance:
-      Math.max(nuevoPendiente, 0),
+            receiptPending:
+              true,
 
-    loanCompleted:
-      prestamoCompletado,
+            receiptSent:
+              false
+          }
+        );
 
-    paymentMethod:
-      "efectivo",
+        transaccion.set(
+          referenciaPago,
+          {
+            paymentId:
+              referenciaPago.id,
 
-    status:
-      "aplicado",
+            loanId:
+              referenciaPrestamo.id,
 
-    createdAt:
-      firebase.firestore.FieldValue.serverTimestamp()
-  }
-);
+            adminId:
+              prestamoActual.adminId,
 
-await lote.commit();
+            adminEmail:
+              prestamoActual.adminEmail || "",
 
-  mensaje.style.color = "#15803d";
+            clientName:
+              prestamoActual.clientName || "",
 
-  mensaje.textContent =
-    "Pago aplicado correctamente.";
+            clientPhone:
+              prestamoActual.clientPhone || "",
 
- cerrarModalPagoDelivery();
+            collectorId:
+              usuarioActual.uid,
 
- await cargarPrestamosDelivery();
+            collectorName:
+              prestamoActual.collectorName ||
+              usuarioActual.email ||
+              "Mensajero",
 
-}
+            amount:
+              monto,
 
-catch (error) {
+            previousBalance:
+              saldoPendiente,
 
-  console.error(error);
+            newBalance:
+              nuevoPendiente,
 
-  mensaje.style.color = "#b42318";
+            loanCompleted:
+              prestamoCompletado,
 
-  mensaje.textContent =
-    "No se pudo registrar el pago.";
+            paymentMethod:
+              "efectivo",
 
-}
+            status:
+              "aplicado",
 
-  boton.disabled = false;
-  boton.innerHTML = `
-    <i data-lucide="check"></i>
-    Aplicar pago
-  `;
+            createdAt:
+              fechaServidor
+          }
+        );
+      }
+    );
 
-  if (window.lucide) {
-    lucide.createIcons();
+    cerrarModalPagoDelivery();
+
+    await cargarPrestamosDelivery();
+
+    alert(
+      "Pago aplicado correctamente."
+    );
+
+  } catch (error) {
+    console.error(
+      "Error registrando el pago:",
+      error
+    );
+
+    mensaje.style.color = "#b42318";
+
+    mensaje.textContent =
+      error.message ||
+      "No se pudo registrar el pago.";
+
+  } finally {
+    boton.disabled = false;
+
+    boton.innerHTML = `
+      <i data-lucide="check"></i>
+      Aplicar pago
+    `;
+
+    if (window.lucide) {
+      lucide.createIcons();
+    }
   }
 }
 

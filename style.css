@@ -3455,6 +3455,10 @@ margin-top:15px;
   }
 }
 
+/*=====================================================
+ BOTONES DE ACCIONES DEL MENSAJERO
+=====================================================*/
+
 .delivery-client-actions {
   display: flex;
   flex-wrap: wrap;
@@ -3462,8 +3466,7 @@ margin-top:15px;
   gap: 10px;
 }
 
-.delivery-receipt-button,
-.delivery-reset-payment-button {
+.delivery-receipt-button {
   min-height: 44px;
   display: inline-flex;
   align-items: center;
@@ -3472,23 +3475,14 @@ margin-top:15px;
   padding: 11px 15px;
   border: 0;
   border-radius: 12px;
+  background: #eef2ff;
+  color: #4338ca;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
 
-.delivery-receipt-button {
-  background: #eef2ff;
-  color: #4338ca;
-}
-
-.delivery-reset-payment-button {
-  background: #fff1f2;
-  color: #be123c;
-}
-
-.delivery-receipt-button svg,
-.delivery-reset-payment-button svg {
+.delivery-receipt-button svg {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
@@ -3501,7 +3495,6 @@ margin-top:15px;
   }
 
   .delivery-receipt-button,
-  .delivery-reset-payment-button,
   .delivery-pay-button {
     width: 100%;
   }
