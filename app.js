@@ -21,6 +21,13 @@ let configuracionMetricas = {
     monthly: 15
   },
 
+    lateFees: {
+    daily: 0,
+    weekly: 0,
+    biweekly: 0,
+    monthly: 0
+  },
+
   levels: {
     level1: 5000,
     level2: 8000,
@@ -946,19 +953,24 @@ async function cargarConfiguracionGeneral() {
         : null;
 
     configuracionMetricas = {
-      ...configuracionMetricas,
-      ...configuracion,
+  ...configuracionMetricas,
+  ...configuracion,
 
-      interestByFrequency: {
-        ...configuracionMetricas.interestByFrequency,
-        ...(configuracion.interestByFrequency || {})
-      },
+  interestByFrequency: {
+    ...configuracionMetricas.interestByFrequency,
+    ...(configuracion.interestByFrequency || {})
+  },
 
-      levels: {
-        ...configuracionMetricas.levels,
-        ...(configuracion.levels || {})
-      }
-    };
+  lateFees: {
+    ...configuracionMetricas.lateFees,
+    ...(configuracion.lateFees || {})
+  },
+
+  levels: {
+    ...configuracionMetricas.levels,
+    ...(configuracion.levels || {})
+  }
+};
 
     calcularPrestamo();
 
@@ -1045,6 +1057,299 @@ function calcularPrestamo() {
     "installmentPreview"
   ).textContent =
     formatoDinero.format(montoCuota);
+}
+
+/*=====================================================
+ CÁLCULO AUTOMÁTICO DE MORA
+=====================================================*/
+
+function convertirFechaPrestamo(fechaTexto) {
+
+  if (!fechaTexto) {
+    return null;
+  }
+
+  const partes =
+    String(fechaTexto)
+      .split("-")
+      .map(Number);
+
+  if (partes.length !== 3) {
+    return null;
+  }
+
+  return new Date(
+    partes[0],
+    partes[1] - 1,
+    partes[2],
+    0,
+    0,
+    0,
+    0
+  );
+}
+
+
+function normalizarFechaDia(fecha) {
+
+  return new Date(
+    fecha.getFullYear(),
+    fecha.getMonth(),
+    fecha.getDate(),
+    0,
+    0,
+    0,
+    0
+  );
+}
+
+
+function obtenerPeriodosVencidos(
+  fechaInicio,
+  frecuencia
+) {
+
+  const inicio =
+    convertirFechaPrestamo(
+      fechaInicio
+    );
+
+  if (!inicio) {
+    return 0;
+  }
+
+  const hoy =
+    normalizarFechaDia(
+      new Date()
+    );
+
+  if (hoy <= inicio) {
+    return 0;
+  }
+
+
+  /*=========================
+    MENSUAL
+  =========================*/
+
+  if (frecuencia === "mensual") {
+
+    let periodos = 0;
+
+    let siguienteFecha =
+      new Date(
+        inicio.getFullYear(),
+        inicio.getMonth() + 1,
+        inicio.getDate()
+      );
+
+    while (
+      hoy >= siguienteFecha
+    ) {
+
+      periodos++;
+
+      siguienteFecha =
+        new Date(
+          inicio.getFullYear(),
+          inicio.getMonth() +
+            periodos + 1,
+          inicio.getDate()
+        );
+
+    }
+
+    return periodos;
+
+  }
+
+
+  /*=========================
+    DIARIO / SEMANAL /
+    QUINCENAL
+  =========================*/
+
+  const diasPorPeriodo = {
+    diario: 1,
+    semanal: 7,
+    quincenal: 15
+  };
+
+
+  const dias =
+    diasPorPeriodo[
+      frecuencia
+    ] || 0;
+
+
+  if (dias <= 0) {
+    return 0;
+  }
+
+
+  const diferencia =
+    hoy.getTime() -
+    inicio.getTime();
+
+
+  const diasTranscurridos =
+    Math.floor(
+      diferencia /
+      86400000
+    );
+
+
+  return Math.floor(
+    diasTranscurridos /
+    dias
+  );
+}
+
+
+function obtenerValorMoraPorFrecuencia(
+  frecuencia
+) {
+
+  const mora =
+    configuracionMetricas
+      .lateFees || {};
+
+
+  if (frecuencia === "diario") {
+    return Number(
+      mora.daily || 0
+    );
+  }
+
+
+  if (frecuencia === "semanal") {
+    return Number(
+      mora.weekly || 0
+    );
+  }
+
+
+  if (frecuencia === "quincenal") {
+    return Number(
+      mora.biweekly || 0
+    );
+  }
+
+
+  if (frecuencia === "mensual") {
+    return Number(
+      mora.monthly || 0
+    );
+  }
+
+
+  return 0;
+}
+
+
+function calcularMoraPrestamo(
+  prestamo
+) {
+
+  const vacio = {
+    periodosVencidos: 0,
+    periodosAtrasados: 0,
+    moraPorPeriodo: 0,
+    moraGenerada: 0,
+    moraPagada: 0,
+    moraTotal: 0,
+    montoProgramado: 0
+  };
+
+  if (!prestamo) {
+    return vacio;
+  }
+
+  if (
+    ![
+      "activo",
+      "pagado_pendiente_recibo"
+    ].includes(prestamo.status)
+  ) {
+    return vacio;
+  }
+
+  const cantidadCuotas =
+    Number(
+      prestamo.installments || 0
+    );
+
+  const cuota =
+    Number(
+      prestamo.installmentAmount || 0
+    );
+
+  const pagadoPrestamo =
+    Number(
+      prestamo.paidAmount || 0
+    );
+
+  const moraPagada =
+    Number(
+      prestamo.lateFeePaid || 0
+    );
+
+  const periodosVencidos =
+    Math.min(
+      obtenerPeriodosVencidos(
+        prestamo.startDate,
+        prestamo.frequency
+      ),
+      cantidadCuotas
+    );
+
+  const montoProgramado =
+    Math.min(
+      periodosVencidos * cuota,
+      Number(
+        prestamo.totalAmount || 0
+      )
+    );
+
+  const atrasoCapital =
+    Math.max(
+      montoProgramado -
+      pagadoPrestamo,
+      0
+    );
+
+  const periodosAtrasados =
+    cuota > 0
+      ? Math.ceil(
+          atrasoCapital / cuota
+        )
+      : 0;
+
+  const moraPorPeriodo =
+    obtenerValorMoraPorFrecuencia(
+      prestamo.frequency
+    );
+
+  const moraGenerada =
+    periodosAtrasados *
+    moraPorPeriodo;
+
+  const moraTotal =
+    Math.max(
+      moraGenerada -
+      moraPagada,
+      0
+    );
+
+  return {
+    periodosVencidos,
+    periodosAtrasados,
+    moraPorPeriodo,
+    moraGenerada,
+    moraPagada,
+    moraTotal,
+    montoProgramado
+  };
 }
 
 /*=====================================================
@@ -2805,6 +3110,7 @@ function mostrarRegistroPagoAdmin(
 =====================================================*/
 
 function actualizarResumenPagoAdmin() {
+
   const selector =
     document.getElementById(
       "adminPaymentLoan"
@@ -2837,11 +3143,15 @@ function actualizarResumenPagoAdmin() {
   const prestamo =
     prestamos.find(
       function (item) {
-        return item.id === selector.value;
+        return (
+          item.id ===
+          selector.value
+        );
       }
     );
 
   if (!prestamo) {
+
     cuotaElemento.textContent =
       formatoDinero.format(0);
 
@@ -2849,22 +3159,43 @@ function actualizarResumenPagoAdmin() {
       formatoDinero.format(0);
 
     campoMonto.value = "";
-    campoMonto.removeAttribute("max");
+
+    campoMonto.removeAttribute(
+      "max"
+    );
 
     return;
   }
 
-  const saldoPendiente =
+  const saldoPrestamo =
     Number(
       prestamo.pendingAmount || 0
     );
 
+  const calculoMora =
+    calcularMoraPrestamo(
+      prestamo
+    );
+
+  const moraPendiente =
+    Number(
+      calculoMora.moraTotal || 0
+    );
+
+  const totalCobrar =
+    saldoPrestamo +
+    moraPendiente;
+
+  const cuotaBase =
+    Number(
+      prestamo.installmentAmount || 0
+    );
+
   const cuotaSugerida =
     Math.min(
-      Number(
-        prestamo.installmentAmount || 0
-      ),
-      saldoPendiente
+      cuotaBase +
+      moraPendiente,
+      totalCobrar
     );
 
   cuotaElemento.textContent =
@@ -2874,13 +3205,13 @@ function actualizarResumenPagoAdmin() {
 
   saldoElemento.textContent =
     formatoDinero.format(
-      saldoPendiente
+      totalCobrar
     );
 
   campoMonto.value = "";
 
   campoMonto.max =
-    String(saldoPendiente);
+    String(totalCobrar);
 
   campoMonto.focus();
 }
@@ -2891,6 +3222,7 @@ function actualizarResumenPagoAdmin() {
 =====================================================*/
 
 async function guardarPagoAdmin(event) {
+
   event.preventDefault();
 
   if (!usuarioActual) {
@@ -2921,18 +3253,28 @@ async function guardarPagoAdmin(event) {
     selector.value;
 
   const monto =
-    Number(campoMonto.value) || 0;
+    Number(
+      campoMonto.value
+    ) || 0;
+
 
   if (!prestamoId) {
-    mensaje.style.color = "#b42318";
+
+    mensaje.style.color =
+      "#b42318";
+
     mensaje.textContent =
       "Selecciona el cliente que realizó el pago.";
 
     return;
   }
 
+
   if (monto <= 0) {
-    mensaje.style.color = "#b42318";
+
+    mensaje.style.color =
+      "#b42318";
+
     mensaje.textContent =
       "Escribe un monto recibido válido.";
 
@@ -2941,11 +3283,16 @@ async function guardarPagoAdmin(event) {
     return;
   }
 
+
   boton.disabled = true;
-  boton.textContent = "Aplicando...";
+  boton.textContent =
+    "Aplicando...";
+
   mensaje.textContent = "";
 
+
   try {
+
     const referenciaPrestamo =
       db
         .collection("loans")
@@ -2956,79 +3303,162 @@ async function guardarPagoAdmin(event) {
         .collection("payments")
         .doc();
 
+
     await db.runTransaction(
       async function (transaccion) {
+
         const documentoPrestamo =
           await transaccion.get(
             referenciaPrestamo
           );
 
+
         if (!documentoPrestamo.exists) {
+
           throw new Error(
             "No se encontró el préstamo."
           );
+
         }
 
-        const prestamoActual =
-          documentoPrestamo.data();
+
+        const prestamoActual = {
+          id: documentoPrestamo.id,
+          ...documentoPrestamo.data()
+        };
+
 
         if (
           prestamoActual.adminId !==
           usuarioActual.uid
         ) {
+
           throw new Error(
             "No tienes permiso para registrar este pago."
           );
+
         }
 
-        const saldoPendiente =
+
+        const saldoPrestamo =
           Number(
-            prestamoActual.pendingAmount || 0
+            prestamoActual
+              .pendingAmount || 0
           );
 
         const totalPrestamo =
           Number(
-            prestamoActual.totalAmount || 0
+            prestamoActual
+              .totalAmount || 0
           );
 
         const pagadoAnterior =
           Number(
-            prestamoActual.paidAmount || 0
+            prestamoActual
+              .paidAmount || 0
           );
 
-        if (
-          prestamoActual.status !== "activo" ||
-          saldoPendiente <= 0
-        ) {
-          throw new Error(
-            "Este préstamo ya no tiene un saldo activo."
+
+        /* MORA */
+
+        const calculoMora =
+          calcularMoraPrestamo(
+            prestamoActual
           );
+
+        const moraPendiente =
+          Number(
+            calculoMora.moraTotal || 0
+          );
+
+        const moraPagadaAnterior =
+          Number(
+            prestamoActual
+              .lateFeePaid || 0
+          );
+
+        const totalCobrar =
+          saldoPrestamo +
+          moraPendiente;
+
+
+        if (totalCobrar <= 0) {
+
+          throw new Error(
+            "Este préstamo ya no tiene saldo activo."
+          );
+
         }
 
-        if (monto > saldoPendiente) {
+
+        if (monto > totalCobrar) {
+
           throw new Error(
-            `El monto no puede superar el saldo de ${
+            `El monto no puede superar el total a cobrar de ${
               formatoDinero.format(
-                saldoPendiente
+                totalCobrar
               )
             }.`
           );
+
         }
+
+
+        /* PRIMERO MORA */
+
+        const aplicadoMora =
+          Math.min(
+            monto,
+            moraPendiente
+          );
+
+        const restanteParaPrestamo =
+          Math.max(
+            monto -
+            aplicadoMora,
+            0
+          );
+
+
+        /* DESPUÉS PRÉSTAMO */
+
+        const aplicadoPrestamo =
+          Math.min(
+            restanteParaPrestamo,
+            saldoPrestamo
+          );
+
+
+        const nuevaMoraPagada =
+          moraPagadaAnterior +
+          aplicadoMora;
+
+        const nuevaMoraPendiente =
+          Math.max(
+            moraPendiente -
+            aplicadoMora,
+            0
+          );
 
         const nuevoPagado =
           Math.min(
-            pagadoAnterior + monto,
+            pagadoAnterior +
+            aplicadoPrestamo,
             totalPrestamo
           );
 
         const nuevoPendiente =
           Math.max(
-            saldoPendiente - monto,
+            saldoPrestamo -
+            aplicadoPrestamo,
             0
           );
 
+
         const prestamoCompletado =
-          nuevoPendiente <= 0;
+          nuevoPendiente <= 0 &&
+          nuevaMoraPendiente <= 0;
+
 
         const nuevoProgreso =
           totalPrestamo > 0
@@ -3043,11 +3473,29 @@ async function guardarPagoAdmin(event) {
               )
             : 0;
 
-        const cuotasPagadas =
+
+        const cuota =
           Number(
-            prestamoActual.paidInstallments ||
-            0
-          ) + 1;
+            prestamoActual
+              .installmentAmount || 0
+          );
+
+        const cantidadCuotas =
+          Number(
+            prestamoActual
+              .installments || 0
+          );
+
+        const cuotasPagadas =
+          cuota > 0
+            ? Math.min(
+                Math.floor(
+                  nuevoPagado / cuota
+                ),
+                cantidadCuotas
+              )
+            : 0;
+
 
         const fechaServidor =
           firebase
@@ -3055,14 +3503,22 @@ async function guardarPagoAdmin(event) {
             .FieldValue
             .serverTimestamp();
 
+
         transaccion.update(
           referenciaPrestamo,
           {
+
             paidAmount:
               nuevoPagado,
 
             pendingAmount:
               nuevoPendiente,
+
+            lateFeePaid:
+              nuevaMoraPagada,
+
+            lateFeeBalance:
+              nuevaMoraPendiente,
 
             paidInstallments:
               cuotasPagadas,
@@ -3102,9 +3558,11 @@ async function guardarPagoAdmin(event) {
           }
         );
 
+
         transaccion.set(
           referenciaPago,
           {
+
             paymentId:
               referenciaPago.id,
 
@@ -3115,13 +3573,16 @@ async function guardarPagoAdmin(event) {
               usuarioActual.uid,
 
             adminEmail:
-              usuarioActual.email || "",
+              usuarioActual.email ||
+              "",
 
             clientName:
-              prestamoActual.clientName || "",
+              prestamoActual
+                .clientName || "",
 
             clientPhone:
-              prestamoActual.clientPhone || "",
+              prestamoActual
+                .clientPhone || "",
 
             collectorId:
               usuarioActual.uid,
@@ -3130,19 +3591,40 @@ async function guardarPagoAdmin(event) {
               "Administración",
 
             originalCollectorId:
-              prestamoActual.collectorId || "",
+              prestamoActual
+                .collectorId || "",
 
             originalCollectorName:
-              prestamoActual.collectorName || "",
+              prestamoActual
+                .collectorName || "",
 
             amount:
               monto,
 
+            lateFeeBefore:
+              moraPendiente,
+
+            lateFeeApplied:
+              aplicadoMora,
+
+            lateFeeAfter:
+              nuevaMoraPendiente,
+
+            loanApplied:
+              aplicadoPrestamo,
+
             previousBalance:
-              saldoPendiente,
+              saldoPrestamo,
 
             newBalance:
               nuevoPendiente,
+
+            previousTotalDue:
+              totalCobrar,
+
+            newTotalDue:
+              nuevoPendiente +
+              nuevaMoraPendiente,
 
             loanCompleted:
               prestamoCompletado,
@@ -3163,10 +3645,14 @@ async function guardarPagoAdmin(event) {
               fechaServidor
           }
         );
+
       }
     );
 
-    mensaje.style.color = "#15803d";
+
+    mensaje.style.color =
+      "#15803d";
+
     mensaje.textContent =
       "Pago registrado correctamente desde administración.";
 
@@ -3175,27 +3661,36 @@ async function guardarPagoAdmin(event) {
 
     actualizarResumenPagoAdmin();
 
+
     setTimeout(
       function () {
+
         abrirPantalla(
           "registrar-pago"
         );
+
       },
       700
     );
 
-  } catch (error) {
+  }
+  catch (error) {
+
     console.error(
       "Error registrando pago administrativo:",
       error
     );
 
-    mensaje.style.color = "#b42318";
+    mensaje.style.color =
+      "#b42318";
+
     mensaje.textContent =
       error.message ||
       "No se pudo registrar el pago.";
 
-  } finally {
+  }
+  finally {
+
     boton.disabled = false;
 
     boton.innerHTML = `
@@ -3206,7 +3701,9 @@ async function guardarPagoAdmin(event) {
     if (window.lucide) {
       lucide.createIcons();
     }
+
   }
+
 }
 
 /*=====================================================
@@ -3558,6 +4055,146 @@ function mostrarMetricas(
 
       </section>
 
+      <section class="metrics-section">
+
+  <div class="metrics-section-title">
+
+    <div>
+
+      <span class="section-label">
+        Mora
+      </span>
+
+      <h3>
+        Mora por atraso
+      </h3>
+
+      <p>
+        Se aplicará una mora por cada período de pago
+        vencido que el cliente no haya cubierto.
+      </p>
+
+    </div>
+
+    <span class="metrics-note">
+      Valores en RD$
+    </span>
+
+  </div>
+
+
+  <div class="metrics-grid">
+
+    <label class="metric-input-card">
+
+      <span>
+        Mora diaria
+      </span>
+
+      <div class="metric-input-wrapper">
+
+        <strong>RD$</strong>
+
+        <input
+          type="number"
+          id="dailyLateFeeMetric"
+          min="0"
+          step="1"
+          value="0"
+        />
+
+      </div>
+
+      <small>
+        Se aplica después de vencer 24 horas.
+      </small>
+
+    </label>
+
+
+    <label class="metric-input-card">
+
+      <span>
+        Mora semanal
+      </span>
+
+      <div class="metric-input-wrapper">
+
+        <strong>RD$</strong>
+
+        <input
+          type="number"
+          id="weeklyLateFeeMetric"
+          min="0"
+          step="1"
+          value="0"
+        />
+
+      </div>
+
+      <small>
+        Se aplica al comenzar el día 8 sin pagar.
+      </small>
+
+    </label>
+
+
+    <label class="metric-input-card">
+
+      <span>
+        Mora quincenal
+      </span>
+
+      <div class="metric-input-wrapper">
+
+        <strong>RD$</strong>
+
+        <input
+          type="number"
+          id="biweeklyLateFeeMetric"
+          min="0"
+          step="1"
+          value="0"
+        />
+
+      </div>
+
+      <small>
+        Se aplica al vencer una quincena completa.
+      </small>
+
+    </label>
+
+
+    <label class="metric-input-card">
+
+      <span>
+        Mora mensual
+      </span>
+
+      <div class="metric-input-wrapper">
+
+        <strong>RD$</strong>
+
+        <input
+          type="number"
+          id="monthlyLateFeeMetric"
+          min="0"
+          step="1"
+          value="0"
+        />
+
+      </div>
+
+      <small>
+        Se aplica al vencer el período mensual.
+      </small>
+
+    </label>
+
+  </div>
+
+</section>
 
       <section class="metrics-section">
 
@@ -3671,6 +4308,34 @@ async function guardarMetricas() {
       document.getElementById("monthlyInterestMetric").value
     );
 
+  const dailyLateFee =
+    Number(
+      document.getElementById(
+        "dailyLateFeeMetric"
+      ).value
+    ) || 0;
+
+  const weeklyLateFee =
+    Number(
+      document.getElementById(
+        "weeklyLateFeeMetric"
+      ).value
+    ) || 0;
+
+  const biweeklyLateFee =
+    Number(
+      document.getElementById(
+        "biweeklyLateFeeMetric"
+      ).value
+    ) || 0;
+
+  const monthlyLateFee =
+    Number(
+      document.getElementById(
+        "monthlyLateFeeMetric"
+      ).value
+    ) || 0;
+
   const levels = {
     level1: Number(
       document.getElementById("level1Metric").value
@@ -3723,6 +4388,13 @@ async function guardarMetricas() {
             monthly: monthlyInterest
           },
 
+          lateFees: {
+            daily: dailyLateFee,
+            weekly: weeklyLateFee,
+            biweekly: biweeklyLateFee,
+            monthly: monthlyLateFee
+          },
+
           levels: levels,
 
           updatedAt:
@@ -3741,6 +4413,13 @@ configuracionMetricas = {
     weekly: weeklyInterest,
     biweekly: biweeklyInterest,
     monthly: monthlyInterest
+  },
+
+  lateFees: {
+    daily: dailyLateFee,
+    weekly: weeklyLateFee,
+    biweekly: biweeklyLateFee,
+    monthly: monthlyLateFee
   },
 
   levels: levels
@@ -3804,6 +4483,26 @@ async function cargarMetricas() {
       "monthlyInterestMetric"
     ).value =
       configuracion.interestByFrequency?.monthly ?? 15;
+
+    document.getElementById(
+      "dailyLateFeeMetric"
+    ).value =
+      configuracion.lateFees?.daily ?? 0;
+
+    document.getElementById(
+      "weeklyLateFeeMetric"
+    ).value =
+      configuracion.lateFees?.weekly ?? 0;
+
+    document.getElementById(
+      "biweeklyLateFeeMetric"
+    ).value =
+      configuracion.lateFees?.biweekly ?? 0;
+
+    document.getElementById(
+      "monthlyLateFeeMetric"
+    ).value =
+      configuracion.lateFees?.monthly ?? 0;
 
     document.getElementById(
       "level1Metric"
@@ -4625,38 +5324,53 @@ function mostrarPagos(
 
       <section class="payroll-period-section">
 
-        <div>
+  <div class="loan-form-grid">
 
-          <label>
-            Desde
+    <label>
+      Mensajero
 
-            <input
-              type="date"
-              id="payrollStartDate"
-            />
-          </label>
+      <select id="payrollMessengerSelect">
 
-          <label>
-            Hasta
+        <option value="">
+          Selecciona un mensajero
+        </option>
 
-            <input
-              type="date"
-              id="payrollEndDate"
-            />
-          </label>
+      </select>
 
-        </div>
+    </label>
 
-        <button
-          type="button"
-          id="calculatePayrollButton"
-          class="primary-button"
-        >
-          <i data-lucide="calculator"></i>
-          Calcular pagos
-        </button>
+    <label>
+      Desde
 
-      </section>
+      <input
+        type="date"
+        id="payrollStartDate"
+      />
+
+    </label>
+
+    <label>
+      Hasta
+
+      <input
+        type="date"
+        id="payrollEndDate"
+      />
+
+    </label>
+
+  </div>
+
+  <button
+    type="button"
+    id="calculatePayrollButton"
+    class="primary-button"
+  >
+    <i data-lucide="calculator"></i>
+    Ver pago
+  </button>
+
+</section>
 
 
       <div
@@ -4754,6 +5468,8 @@ function mostrarPagos(
       .toISOString()
       .split("T")[0];
 
+      cargarSelectorPagosMensajeros();
+
   document.getElementById(
     "payrollEndDate"
   ).value =
@@ -4763,13 +5479,32 @@ function mostrarPagos(
 
 
   document
-    .getElementById(
-      "calculatePayrollButton"
-    )
-    .addEventListener(
-      "click",
-      cargarPanelPagosMensajeros
-    );
+  .getElementById(
+    "calculatePayrollButton"
+  )
+  .addEventListener(
+    "click",
+    function () {
+
+      const selector =
+        document.getElementById(
+          "payrollMessengerSelect"
+        );
+
+      if (!selector.value) {
+
+        alert(
+          "Selecciona un mensajero."
+        );
+
+        return;
+
+      }
+
+      cargarPanelPagosMensajeros();
+
+    }
+  );
 
 
   document
@@ -4791,9 +5526,6 @@ function mostrarPagos(
       filtrarHistorialNomina
     );
 
-
-   cargarPanelPagosMensajeros();
-
   cargarHistorialNomina();
 
   if (window.lucide) {
@@ -4801,11 +5533,96 @@ function mostrarPagos(
   }
 }
 
+async function cargarSelectorPagosMensajeros() {
+
+  const selector =
+    document.getElementById(
+      "payrollMessengerSelect"
+    );
+
+  if (!selector || !usuarioActual) {
+    return;
+  }
+
+  selector.innerHTML = `
+    <option value="">
+      Cargando mensajeros...
+    </option>
+  `;
+
+  try {
+
+    const resultado =
+      await db
+        .collection("messengers")
+        .where(
+          "adminId",
+          "==",
+          usuarioActual.uid
+        )
+        .get();
+
+    if (resultado.empty) {
+
+      selector.innerHTML = `
+        <option value="">
+          No hay mensajeros
+        </option>
+      `;
+
+      return;
+    }
+
+    selector.innerHTML = `
+      <option value="">
+        Selecciona un mensajero
+      </option>
+
+      ${
+        resultado.docs
+          .map(function (documento) {
+
+            const mensajero =
+              documento.data();
+
+            return `
+              <option
+                value="${documento.id}"
+              >
+                ${escaparHTML(
+                  mensajero.name ||
+                  mensajero.email ||
+                  "Mensajero"
+                )}
+              </option>
+            `;
+
+          })
+          .join("")
+      }
+    `;
+
+  }
+  catch (error) {
+
+    console.error(
+      "Error cargando selector de mensajeros:",
+      error
+    );
+
+    selector.innerHTML = `
+      <option value="">
+        No se pudieron cargar
+      </option>
+    `;
+
+  }
+}
 
 async function pagarMensajero(
-  mensajeroId,
-  collectorUid
+  mensajeroId
 ) {
+
   const inicio =
     document.getElementById(
       "payrollStartDate"
@@ -4816,7 +5633,9 @@ async function pagarMensajero(
       "payrollEndDate"
     ).value;
 
+
   if (!inicio || !fin) {
+
     alert(
       "Selecciona la fecha inicial y final."
     );
@@ -4824,7 +5643,9 @@ async function pagarMensajero(
     return;
   }
 
+
   if (inicio > fin) {
+
     alert(
       "La fecha inicial no puede ser mayor que la final."
     );
@@ -4832,22 +5653,31 @@ async function pagarMensajero(
     return;
   }
 
+
   const confirmar = confirm(
-    "¿Deseas registrar este pago de nómina?"
+    "¿Confirmas que el pago de este mensajero fue realizado o está en proceso?"
   );
 
   if (!confirmar) {
     return;
   }
 
+
   try {
+
+    /*=========================================
+      BUSCAR MENSAJERO
+    =========================================*/
+
     const mensajeroDoc =
       await db
         .collection("messengers")
         .doc(mensajeroId)
         .get();
 
+
     if (!mensajeroDoc.exists) {
+
       alert(
         "No se encontró el mensajero."
       );
@@ -4855,25 +5685,73 @@ async function pagarMensajero(
       return;
     }
 
+
     const mensajero = {
       id: mensajeroDoc.id,
       ...mensajeroDoc.data()
     };
 
-    if (!collectorUid) {
-  collectorUid =
-    await obtenerUidMensajeroPorEmail(
-      mensajero.email
-    );
-}
 
-if (!collectorUid) {
-  alert(
-    "No se encontró la cuenta de acceso de este mensajero."
-  );
+    /*=========================================
+      BUSCAR CUENTA DE ACCESO REAL
+    =========================================*/
 
-  return;
-}
+    const correoMensajero =
+      String(
+        mensajero.email || ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    const resultadoUsuarios =
+      await db
+        .collection("users")
+        .where(
+          "role",
+          "==",
+          "delivery"
+        )
+        .get();
+
+
+    const usuarioDelivery =
+      resultadoUsuarios.docs.find(
+        function (documento) {
+
+          const datos =
+            documento.data();
+
+          return (
+            String(
+              datos.email || ""
+            )
+              .trim()
+              .toLowerCase() ===
+            correoMensajero
+          );
+
+        }
+      );
+
+
+    if (!usuarioDelivery) {
+
+      alert(
+        "No se pudo vincular este mensajero con su cuenta de acceso. Revisa que tenga el mismo correo en Mensajeros y en su usuario."
+      );
+
+      return;
+    }
+
+
+    const collectorUid =
+      usuarioDelivery.id;
+
+
+    /*=========================================
+      BUSCAR COBROS DEL PERÍODO
+    =========================================*/
 
     const resultadoCobros =
       await db
@@ -4885,25 +5763,54 @@ if (!collectorUid) {
         )
         .get();
 
+
+    const nombreMensajero =
+      String(
+        mensajero.name || ""
+      )
+        .trim()
+        .toLowerCase();
+
+
     const cobros =
       resultadoCobros.docs
         .map(function (documento) {
+
           return {
             id: documento.id,
             ...documento.data()
           };
+
         })
         .filter(function (pago) {
+
+          const mismoUid =
+            pago.collectorId ===
+            collectorUid;
+
+
+          const mismoNombre =
+            nombreMensajero &&
+            String(
+              pago.collectorName || ""
+            )
+              .trim()
+              .toLowerCase() ===
+            nombreMensajero;
+
+
           if (
-            pago.collectorId !==
-            collectorUid
+            !mismoUid &&
+            !mismoNombre
           ) {
             return false;
           }
 
+
           if (!pago.createdAt?.toDate) {
             return false;
           }
+
 
           const fechaPago =
             pago.createdAt
@@ -4911,79 +5818,123 @@ if (!collectorUid) {
               .toISOString()
               .split("T")[0];
 
+
           return (
             fechaPago >= inicio &&
             fechaPago <= fin
           );
+
         });
+
+
+    /*=========================================
+      CALCULAR COBRADO
+    =========================================*/
 
     const totalCobrado =
       cobros.reduce(
         function (total, pago) {
+
           return (
             total +
             Number(pago.amount || 0)
           );
+
         },
         0
       );
+
+
+    /*=========================================
+      SUELDO Y COMISIÓN
+    =========================================*/
 
     const sueldo =
       Number(
         mensajero.salary || 0
       );
 
+
     const meta =
       Number(
         mensajero.goal || 0
       );
 
+
     const comision =
-      totalCobrado >= meta
+      (
+        meta <= 0 ||
+        totalCobrado >= meta
+      )
         ? Number(
             mensajero.commission || 0
           )
         : 0;
 
+
     const totalPagar =
       sueldo + comision;
 
-    const pagoDuplicado =
+
+    /*=========================================
+      EVITAR DUPLICADOS
+    =========================================*/
+
+    const resultadoNominas =
       await db
-        .collection("messengerPayrolls")
+        .collection(
+          "messengerPayrolls"
+        )
         .where(
           "adminId",
           "==",
           usuarioActual.uid
         )
-        .where(
-          "collectorId",
-          "==",
-          collectorUid
-        )
-        .where(
-          "periodStart",
-          "==",
-          inicio
-        )
-        .where(
-          "periodEnd",
-          "==",
-          fin
-        )
         .get();
 
-    if (!pagoDuplicado.empty) {
+
+    const yaExiste =
+      resultadoNominas.docs.some(
+        function (documento) {
+
+          const pago =
+            documento.data();
+
+          return (
+            pago.collectorId ===
+              collectorUid &&
+
+            pago.periodStart ===
+              inicio &&
+
+            pago.periodEnd ===
+              fin
+          );
+
+        }
+      );
+
+
+    if (yaExiste) {
+
       alert(
-        "Este período ya fue pagado a este mensajero."
+        "Este pago ya fue confirmado para este período."
       );
 
       return;
     }
 
+
+    /*=========================================
+      REGISTRAR CONFIRMACIÓN
+    =========================================*/
+
     await db
-      .collection("messengerPayrolls")
+      .collection(
+        "messengerPayrolls"
+      )
       .add({
+
         adminId:
           usuarioActual.uid,
 
@@ -4994,10 +5945,14 @@ if (!collectorUid) {
           collectorUid,
 
         collectorName:
-          mensajero.name || "Mensajero",
+          mensajero.name ||
+          "Mensajero",
 
         collectorEmail:
-          mensajero.email || "",
+          correoMensajero,
+
+        messengerId:
+          mensajero.id,
 
         periodStart:
           inicio,
@@ -5024,27 +5979,39 @@ if (!collectorUid) {
           "pagado",
 
         paidAt:
-          firebase.firestore.FieldValue.serverTimestamp()
+          firebase
+            .firestore
+            .FieldValue
+            .serverTimestamp()
+
       });
 
+
     alert(
-      "Pago registrado correctamente."
+      "Pago confirmado correctamente. El mensajero podrá verlo en Mi sueldo."
     );
+
 
     await cargarPanelPagosMensajeros();
 
     await cargarHistorialNomina();
 
-  } catch (error) {
+  }
+  catch (error) {
+
     console.error(
-      "Error pagando al mensajero:",
+      "Error confirmando pago del mensajero:",
       error
     );
 
+
     alert(
-      "No se pudo registrar el pago."
+      error.message ||
+      "No se pudo confirmar el pago."
     );
+
   }
+
 }
 
 /*=====================================================
@@ -5177,16 +6144,6 @@ function crearListaPrestamos(
                   <strong>
                     ${formatoDinero.format(
                       Number(prestamo.totalAmount || 0)
-                    )}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>Cuota</span>
-
-                  <strong>
-                    ${formatoDinero.format(
-                      Number(prestamo.installmentAmount || 0)
                     )}
                   </strong>
                 </div>
@@ -5617,7 +6574,7 @@ function mostrarPanelDelivery(usuario) {
       <section class="delivery-payment-summary">
 
         <article>
-          <span>Saldo pendiente</span>
+          <span>Total a cobrar</span>
 
           <strong id="deliveryPaymentPendingText">
             RD$0.00
@@ -5759,8 +6716,8 @@ function mostrarPanelDelivery(usuario) {
     id="completeDeliveryLoanButton"
     class="secondary-button hidden"
   >
-    <i data-lucide="circle-check-big"></i>
-    Marcar como completado
+    <i data-lucide="archive"></i>
+    Cerrar préstamo
   </button>
 
   <button
@@ -6003,6 +6960,19 @@ async function cargarPrestamosDelivery() {
 
           const pendiente =
             Number(prestamo.pendingAmount || 0);
+            
+          const calculoMora =
+            calcularMoraPrestamo(
+              prestamo
+            );
+
+          const moraAcumulada =
+            Number(
+              calculoMora.moraTotal || 0
+            );
+
+          const totalConMora =
+            pendiente + moraAcumulada;
 
           const progreso =
             total > 0
@@ -6113,23 +7083,46 @@ async function cargarPrestamosDelivery() {
         <span>Pagado</span>
 
         <strong class="success-number">
-          ${formatoDinero.format(pagado)}
+          ${formatoDinero.format(
+            pagado
+          )}
         </strong>
       </article>
 
+
       <article>
-        <span>Pendiente</span>
+        <span>Mora</span>
+
+        <strong class="${
+          moraAcumulada > 0
+            ? "danger-number"
+            : ""
+        }">
+          ${formatoDinero.format(
+            moraAcumulada
+          )}
+        </strong>
+      </article>
+
+
+      <article>
+        <span>Saldo préstamo</span>
 
         <strong class="danger-number">
-          ${formatoDinero.format(pendiente)}
+          ${formatoDinero.format(
+            pendiente
+          )}
         </strong>
       </article>
 
-      <article>
-        <span>Progreso</span>
 
-        <strong>
-          ${progreso}%
+      <article>
+        <span>Total a cobrar</span>
+
+        <strong class="danger-number">
+          ${formatoDinero.format(
+            totalConMora
+          )}
         </strong>
       </article>
 
@@ -6230,6 +7223,25 @@ async function abrirModalPagoDelivery(prestamoId) {
 
     };
 
+    const calculoMora =
+      calcularMoraPrestamo(
+        prestamoSeleccionado
+      );
+
+    const moraAcumulada =
+      Number(
+       calculoMora.moraTotal || 0
+      );
+
+    const saldoPrestamo =
+      Number(
+        prestamoSeleccionado.pendingAmount || 0
+      );
+
+    const totalCobrar =
+      saldoPrestamo +
+      moraAcumulada;
+
     document.getElementById(
       "deliveryPaymentLoanId"
     ).value = prestamoSeleccionado.id;
@@ -6243,9 +7255,7 @@ async function abrirModalPagoDelivery(prestamoId) {
       "deliveryPaymentPendingText"
     ).textContent =
       formatoDinero.format(
-        Number(
-          prestamoSeleccionado.pendingAmount || 0
-        )
+        totalCobrar
       );
 
       const cuotaSugerida =
@@ -6385,6 +7395,39 @@ async function abrirComprobanteDelivery(prestamoId) {
     const ultimoPago =
       pagosPrestamo[0] || null;
 
+      const aplicadoMora =
+  Number(
+    ultimoPago?.lateFeeApplied || 0
+  );
+
+const aplicadoPrestamo =
+  Number(
+    ultimoPago?.loanApplied ||
+    ultimoPago?.amount ||
+    0
+  );
+
+const moraRestante =
+  Number(
+    ultimoPago?.lateFeeAfter || 0
+  );
+
+const saldoPrestamo =
+  Number(
+    ultimoPago?.newBalance ??
+    prestamo.pendingAmount ??
+    0
+  );
+
+const totalPendiente =
+  saldoPrestamo +
+  moraRestante;
+
+const esPagoFinal =
+  ultimoPago?.loanCompleted === true &&
+  saldoPrestamo <= 0 &&
+  moraRestante <= 0;
+
     const fechaPago =
       ultimoPago?.createdAt?.toDate
         ? ultimoPago.createdAt.toDate()
@@ -6413,8 +7456,9 @@ async function abrirComprobanteDelivery(prestamoId) {
 
 if (botonCompletar) {
   const prestamoSaldado =
-    prestamo.status === "pagado_pendiente_recibo"
-    || Number(prestamo.pendingAmount || 0) <= 0;
+    esPagoFinal &&
+    prestamo.status ===
+      "pagado_pendiente_recibo";
 
   botonCompletar.classList.toggle(
     "hidden",
@@ -6478,34 +7522,69 @@ if (botonCompletar) {
       </div>
 
       <div class="delivery-receipt-row">
-        <span>Último pago</span>
+  <span>Monto recibido</span>
 
-        <strong>
-          ${formatoDinero.format(
-            Number(ultimoPago?.amount || 0)
-          )}
-        </strong>
-      </div>
+  <strong>
+    ${formatoDinero.format(
+      Number(ultimoPago?.amount || 0)
+    )}
+  </strong>
+</div>
 
-      <div class="delivery-receipt-row">
-        <span>Total pagado</span>
 
-        <strong>
-          ${formatoDinero.format(
-            Number(prestamo.paidAmount || 0)
-          )}
-        </strong>
-      </div>
+<div class="delivery-receipt-row">
+  <span>Aplicado a mora</span>
 
-      <div class="delivery-receipt-row">
-        <span>Saldo pendiente</span>
+  <strong>
+    ${formatoDinero.format(
+      aplicadoMora
+    )}
+  </strong>
+</div>
 
-        <strong>
-          ${formatoDinero.format(
-            Number(prestamo.pendingAmount || 0)
-          )}
-        </strong>
-      </div>
+
+<div class="delivery-receipt-row">
+  <span>Aplicado al préstamo</span>
+
+  <strong>
+    ${formatoDinero.format(
+      aplicadoPrestamo
+    )}
+  </strong>
+</div>
+
+
+<div class="delivery-receipt-row">
+  <span>Mora restante</span>
+
+  <strong>
+    ${formatoDinero.format(
+      moraRestante
+    )}
+  </strong>
+</div>
+
+
+<div class="delivery-receipt-row">
+  <span>Saldo del préstamo</span>
+
+  <strong>
+    ${formatoDinero.format(
+      saldoPrestamo
+    )}
+  </strong>
+</div>
+
+
+<div class="delivery-receipt-row">
+  <span>Total pendiente</span>
+
+  <strong>
+    ${formatoDinero.format(
+      totalPendiente
+    )}
+  </strong>
+</div>
 
       <div class="delivery-receipt-row">
         <span>Mensajero</span>
@@ -6521,7 +7600,11 @@ if (botonCompletar) {
       </div>
 
       <div class="delivery-receipt-total">
-        PRÉSTAMO SALDADO
+        ${
+         esPagoFinal
+           ? "PRÉSTAMO SALDADO"
+           : "CUOTA PAGADA"
+        }
       </div>
     `;
 
@@ -6559,6 +7642,7 @@ function cerrarComprobanteDelivery() {
 
 
 function enviarComprobanteWhatsApp() {
+
   if (!comprobanteSeleccionado) {
     return;
   }
@@ -6570,11 +7654,16 @@ function enviarComprobanteWhatsApp() {
     fechaPago
   } = comprobanteSeleccionado;
 
+
   const telefono =
-    String(prestamo.clientPhone || "")
+    String(
+      prestamo.clientPhone || ""
+    )
       .replace(/\D/g, "");
 
+
   if (!telefono) {
+
     const mensaje =
       document.getElementById(
         "deliveryReceiptMessage"
@@ -6586,35 +7675,132 @@ function enviarComprobanteWhatsApp() {
     return;
   }
 
+
   const telefonoWhatsApp =
     telefono.length === 10
       ? `1${telefono}`
       : telefono;
 
+
+  const montoRecibido =
+    Number(
+      ultimoPago?.amount || 0
+    );
+
+  const aplicadoMora =
+    Number(
+      ultimoPago?.lateFeeApplied || 0
+    );
+
+  const aplicadoPrestamo =
+    Number(
+      ultimoPago?.loanApplied ||
+      ultimoPago?.amount ||
+      0
+    );
+
+  const moraRestante =
+    Number(
+      ultimoPago?.lateFeeAfter || 0
+    );
+
+  const saldoPrestamo =
+    Number(
+      ultimoPago?.newBalance ??
+      prestamo.pendingAmount ??
+      0
+    );
+
+  const totalPendiente =
+    saldoPrestamo +
+    moraRestante;
+
+
+  const esPagoFinal =
+    ultimoPago?.loanCompleted === true &&
+    saldoPrestamo <= 0 &&
+    moraRestante <= 0;
+
+
   const texto = [
+
     "*SOLUTIONDATA*",
-    "*COMPROBANTE DE PAGO*",
+
+    esPagoFinal
+      ? "*PRÉSTAMO SALDADO*"
+      : "*CUOTA PAGADA*",
+
     "",
+
     `Recibo: #${numeroRecibo}`,
-    `Cliente: ${prestamo.clientName || "Cliente"}`,
-    `Fecha: ${fechaPago.toLocaleDateString("es-DO")}`,
-    `Último pago: ${formatoDinero.format(
-      Number(ultimoPago?.amount || 0)
-    )}`,
-    `Total pagado: ${formatoDinero.format(
-      Number(prestamo.paidAmount || 0)
-    )}`,
-    "Saldo pendiente: RD$0.00",
+
+    `Cliente: ${
+      prestamo.clientName ||
+      "Cliente"
+    }`,
+
+    `Fecha: ${
+      fechaPago.toLocaleDateString(
+        "es-DO"
+      )
+    }`,
+
     "",
-    "*ESTADO: PRÉSTAMO SALDADO*",
+
+    `Monto recibido: ${
+      formatoDinero.format(
+        montoRecibido
+      )
+    }`,
+
+    `Aplicado a mora: ${
+      formatoDinero.format(
+        aplicadoMora
+      )
+    }`,
+
+    `Aplicado al préstamo: ${
+      formatoDinero.format(
+        aplicadoPrestamo
+      )
+    }`,
+
+    `Mora restante: ${
+      formatoDinero.format(
+        moraRestante
+      )
+    }`,
+
+    `Saldo del préstamo: ${
+      formatoDinero.format(
+        saldoPrestamo
+      )
+    }`,
+
+    `Total pendiente: ${
+      formatoDinero.format(
+        totalPendiente
+      )
+    }`,
+
     "",
+
+    esPagoFinal
+      ? "*ESTADO: PRÉSTAMO SALDADO*"
+      : "*ESTADO: CUOTA PAGADA*",
+
+    "",
+
     "Gracias por su pago."
+
   ].join("\n");
+
 
   window.open(
     `https://wa.me/${telefonoWhatsApp}?text=${encodeURIComponent(texto)}`,
     "_blank"
   );
+
 }
 
 async function marcarPrestamoDeliveryCompletado() {
@@ -6635,14 +7821,41 @@ async function marcarPrestamoDeliveryCompletado() {
       "deliveryReceiptMessage"
     );
 
-  if (Number(prestamo.pendingAmount || 0) > 0) {
-    mensaje.style.color = "#b42318";
+  const calculoMora =
+  calcularMoraPrestamo(
+    prestamo
+  );
 
-    mensaje.textContent =
-      "Este préstamo todavía tiene saldo pendiente.";
+const saldoPrestamo =
+  Number(
+    prestamo.pendingAmount || 0
+  );
 
-    return;
-  }
+const moraPendiente =
+  Number(
+    prestamo.lateFeeBalance ??
+    calculoMora.moraTotal ??
+    0
+  );
+
+if (
+  saldoPrestamo > 0 ||
+  moraPendiente > 0
+) {
+
+  mensaje.style.color =
+    "#b42318";
+
+  mensaje.textContent =
+    `Este préstamo todavía debe ${
+      formatoDinero.format(
+        saldoPrestamo +
+        moraPendiente
+      )
+    }.`;
+
+  return;
+}
 
   const confirmar = confirm(
     "¿Confirmas que el recibo fue enviado y deseas completar este préstamo?"
@@ -6653,7 +7866,7 @@ async function marcarPrestamoDeliveryCompletado() {
   }
 
   boton.disabled = true;
-  boton.textContent = "Completando...";
+  boton.textContent = "Cerrando...";
   mensaje.textContent = "";
 
   try {
@@ -6698,8 +7911,8 @@ async function marcarPrestamoDeliveryCompletado() {
     boton.disabled = false;
 
     boton.innerHTML = `
-      <i data-lucide="circle-check-big"></i>
-      Marcar como completado
+      <i data-lucide="archive"></i>
+      Cerrar préstamo
     `;
 
     if (window.lucide) {
@@ -6709,6 +7922,7 @@ async function marcarPrestamoDeliveryCompletado() {
 }
 
 async function guardarPagoDelivery(event) {
+
   event.preventDefault();
 
   const mensaje =
@@ -6730,7 +7944,10 @@ async function guardarPagoDelivery(event) {
     Number(campoMonto.value) || 0;
 
   if (!prestamoSeleccionado) {
-    mensaje.style.color = "#b42318";
+
+    mensaje.style.color =
+      "#b42318";
+
     mensaje.textContent =
       "No se encontró el préstamo seleccionado.";
 
@@ -6738,7 +7955,10 @@ async function guardarPagoDelivery(event) {
   }
 
   if (monto <= 0) {
-    mensaje.style.color = "#b42318";
+
+    mensaje.style.color =
+      "#b42318";
+
     mensaje.textContent =
       "Escribe el monto recibido.";
 
@@ -6748,14 +7968,19 @@ async function guardarPagoDelivery(event) {
   }
 
   boton.disabled = true;
-  boton.textContent = "Aplicando...";
+  boton.textContent =
+    "Aplicando...";
+
   mensaje.textContent = "";
 
   try {
+
     const referenciaPrestamo =
       db
         .collection("loans")
-        .doc(prestamoSeleccionado.id);
+        .doc(
+          prestamoSeleccionado.id
+        );
 
     const referenciaPago =
       db
@@ -6764,65 +7989,159 @@ async function guardarPagoDelivery(event) {
 
     await db.runTransaction(
       async function (transaccion) {
+
         const documentoPrestamo =
           await transaccion.get(
             referenciaPrestamo
           );
 
         if (!documentoPrestamo.exists) {
+
           throw new Error(
             "No se encontró el préstamo."
           );
+
         }
 
-        const prestamoActual =
-          documentoPrestamo.data();
+        const prestamoActual = {
+          id: documentoPrestamo.id,
+          ...documentoPrestamo.data()
+        };
 
-        const saldoPendiente =
+
+        /*==============================
+          SALDO DEL PRÉSTAMO
+        ==============================*/
+
+        const saldoPrestamo =
           Number(
-            prestamoActual.pendingAmount || 0
+            prestamoActual
+              .pendingAmount || 0
           );
 
         const totalPrestamo =
           Number(
-            prestamoActual.totalAmount || 0
+            prestamoActual
+              .totalAmount || 0
           );
 
         const pagadoAnterior =
           Number(
-            prestamoActual.paidAmount || 0
+            prestamoActual
+              .paidAmount || 0
           );
 
-        if (saldoPendiente <= 0) {
+
+        /*==============================
+          CALCULAR MORA ACTUAL
+        ==============================*/
+
+        const calculoMora =
+          calcularMoraPrestamo(
+            prestamoActual
+          );
+
+        const moraPendiente =
+          Number(
+            calculoMora.moraTotal || 0
+          );
+
+        const moraPagadaAnterior =
+          Number(
+            prestamoActual
+              .lateFeePaid || 0
+          );
+
+        const totalCobrar =
+          saldoPrestamo +
+          moraPendiente;
+
+
+        if (totalCobrar <= 0) {
+
           throw new Error(
             "Este préstamo ya está completamente pagado."
           );
+
         }
 
-        if (monto > saldoPendiente) {
+
+        if (monto > totalCobrar) {
+
           throw new Error(
-            `El pago no puede superar el saldo pendiente de ${
+            `El pago no puede superar el total a cobrar de ${
               formatoDinero.format(
-                saldoPendiente
+                totalCobrar
               )
             }.`
           );
+
         }
+
+
+        /*==============================
+          PRIMERO COBRAR MORA
+        ==============================*/
+
+        const aplicadoMora =
+          Math.min(
+            monto,
+            moraPendiente
+          );
+
+        const restanteParaPrestamo =
+          Math.max(
+            monto -
+            aplicadoMora,
+            0
+          );
+
+
+        /*==============================
+          DESPUÉS COBRAR PRÉSTAMO
+        ==============================*/
+
+        const aplicadoPrestamo =
+          Math.min(
+            restanteParaPrestamo,
+            saldoPrestamo
+          );
+
+        const nuevaMoraPagada =
+          moraPagadaAnterior +
+          aplicadoMora;
+
+        const nuevaMoraPendiente =
+          Math.max(
+            moraPendiente -
+            aplicadoMora,
+            0
+          );
 
         const nuevoPagado =
           Math.min(
-            pagadoAnterior + monto,
+            pagadoAnterior +
+            aplicadoPrestamo,
             totalPrestamo
           );
 
         const nuevoPendiente =
           Math.max(
-            saldoPendiente - monto,
+            saldoPrestamo -
+            aplicadoPrestamo,
             0
           );
 
+
+        /*==============================
+          TERMINADO SOLO SI NO DEBE
+          NI PRÉSTAMO NI MORA
+        ==============================*/
+
         const prestamoCompletado =
-          nuevoPendiente <= 0;
+          nuevoPendiente <= 0 &&
+          nuevaMoraPendiente <= 0;
+
 
         const nuevoProgreso =
           totalPrestamo > 0
@@ -6837,10 +8156,29 @@ async function guardarPagoDelivery(event) {
               )
             : 0;
 
-        const cuotasPagadas =
+
+        const cuota =
           Number(
-            prestamoActual.paidInstallments || 0
-          ) + 1;
+            prestamoActual
+              .installmentAmount || 0
+          );
+
+        const cantidadCuotas =
+          Number(
+            prestamoActual
+              .installments || 0
+          );
+
+        const cuotasPagadas =
+          cuota > 0
+            ? Math.min(
+                Math.floor(
+                  nuevoPagado / cuota
+                ),
+                cantidadCuotas
+              )
+            : 0;
+
 
         const fechaServidor =
           firebase
@@ -6848,14 +8186,26 @@ async function guardarPagoDelivery(event) {
             .FieldValue
             .serverTimestamp();
 
+
+        /*==============================
+          ACTUALIZAR PRÉSTAMO
+        ==============================*/
+
         transaccion.update(
           referenciaPrestamo,
           {
+
             paidAmount:
               nuevoPagado,
 
             pendingAmount:
               nuevoPendiente,
+
+            lateFeePaid:
+              nuevaMoraPagada,
+
+            lateFeeBalance:
+              nuevaMoraPendiente,
 
             paidInstallments:
               cuotasPagadas,
@@ -6867,7 +8217,7 @@ async function guardarPagoDelivery(event) {
 
             status:
               prestamoCompletado
-                ? "terminado"
+                ? "pagado_pendiente_recibo"
                 : "activo",
 
             paidAt:
@@ -6876,9 +8226,7 @@ async function guardarPagoDelivery(event) {
                 : null,
 
             completedAt:
-              prestamoCompletado
-                ? fechaServidor
-                : null,
+              null,
 
             lastPaymentId:
               referenciaPago.id,
@@ -6897,9 +8245,15 @@ async function guardarPagoDelivery(event) {
           }
         );
 
+
+        /*==============================
+          REGISTRAR PAGO
+        ==============================*/
+
         transaccion.set(
           referenciaPago,
           {
+
             paymentId:
               referenciaPago.id,
 
@@ -6910,30 +8264,59 @@ async function guardarPagoDelivery(event) {
               prestamoActual.adminId,
 
             adminEmail:
-              prestamoActual.adminEmail || "",
+              prestamoActual.adminEmail ||
+              "",
 
             clientName:
-              prestamoActual.clientName || "",
+              prestamoActual.clientName ||
+              "",
 
             clientPhone:
-              prestamoActual.clientPhone || "",
+              prestamoActual.clientPhone ||
+              "",
 
             collectorId:
               usuarioActual.uid,
 
             collectorName:
-              prestamoActual.collectorName ||
+              prestamoActual
+                .collectorName ||
               usuarioActual.email ||
               "Mensajero",
 
             amount:
               monto,
 
+            /* MORA */
+
+            lateFeeBefore:
+              moraPendiente,
+
+            lateFeeApplied:
+              aplicadoMora,
+
+            lateFeeAfter:
+              nuevaMoraPendiente,
+
+            /* PRÉSTAMO */
+
+            loanApplied:
+              aplicadoPrestamo,
+
             previousBalance:
-              saldoPendiente,
+              saldoPrestamo,
 
             newBalance:
               nuevoPendiente,
+
+            /* TOTALES */
+
+            previousTotalDue:
+              totalCobrar,
+
+            newTotalDue:
+              nuevoPendiente +
+              nuevaMoraPendiente,
 
             loanCompleted:
               prestamoCompletado,
@@ -6948,8 +8331,10 @@ async function guardarPagoDelivery(event) {
               fechaServidor
           }
         );
+
       }
     );
+
 
     cerrarModalPagoDelivery();
 
@@ -6959,19 +8344,24 @@ async function guardarPagoDelivery(event) {
       "Pago aplicado correctamente."
     );
 
-  } catch (error) {
+  }
+  catch (error) {
+
     console.error(
       "Error registrando el pago:",
       error
     );
 
-    mensaje.style.color = "#b42318";
+    mensaje.style.color =
+      "#b42318";
 
     mensaje.textContent =
       error.message ||
       "No se pudo registrar el pago.";
 
-  } finally {
+  }
+  finally {
+
     boton.disabled = false;
 
     boton.innerHTML = `
@@ -6982,7 +8372,9 @@ async function guardarPagoDelivery(event) {
     if (window.lucide) {
       lucide.createIcons();
     }
+
   }
+
 }
 
 async function cargarHistorialDelivery() {
@@ -7703,15 +9095,6 @@ function abrirPantallaDelivery(pagina) {
           </p>
         </div>
 
-        <button
-          type="button"
-          id="viewDeliveryDebtsButton"
-          class="primary-button"
-        >
-          <i data-lucide="eye"></i>
-          Ver deudas
-        </button>
-
       </div>
 
       <div
@@ -7725,19 +9108,6 @@ function abrirPantallaDelivery(pagina) {
 
     </section>
   `;
-
-  document
-    .getElementById(
-      "viewDeliveryDebtsButton"
-    )
-    .addEventListener(
-      "click",
-      function () {
-        abrirPantallaDelivery(
-          "cobros"
-        );
-      }
-    );
 
   cargarInicioDelivery();
 }
@@ -8011,9 +9381,10 @@ function abrirPantallaDelivery(pagina) {
 
       <div class="delivery-receipt-total">
         ${
-          pago.loanCompleted === true
+          pago.loanCompleted === true ||
+          Number(pago.newBalance || 0) <= 0
             ? "PRÉSTAMO SALDADO"
-            : "PAGO APLICADO"
+            : "CUOTA PAGADA"
         }
       </div>
     `;
@@ -8134,41 +9505,122 @@ async function obtenerUidMensajeroPorEmail(email) {
 }
 
 async function cargarPanelPagosMensajeros() {
+
   const contenedor =
     document.getElementById(
       "messengerPayrollContainer"
     );
 
-  if (!contenedor || !usuarioActual) {
+  const selector =
+    document.getElementById(
+      "payrollMessengerSelect"
+    );
+
+  if (
+    !contenedor ||
+    !selector ||
+    !usuarioActual
+  ) {
     return;
   }
 
+  const mensajeroId =
+    selector.value;
+
+  if (!mensajeroId) {
+
+    contenedor.innerHTML = `
+      <div class="empty-state">
+
+        <h3>Selecciona un mensajero</h3>
+
+        <p>
+          Elige el mensajero para ver
+          sus cobros y su nómina.
+        </p>
+
+      </div>
+    `;
+
+    return;
+  }
+
+
+  const inicio =
+    document.getElementById(
+      "payrollStartDate"
+    ).value;
+
+  const fin =
+    document.getElementById(
+      "payrollEndDate"
+    ).value;
+
+
+  if (!inicio || !fin) {
+
+    alert(
+      "Selecciona la fecha inicial y final."
+    );
+
+    return;
+  }
+
+
   contenedor.innerHTML = `
     <div class="empty-state">
-      <h3>Cargando pagos del mes...</h3>
+
+      <h3>Calculando...</h3>
+
+      <p>
+        Buscando los cobros del mensajero.
+      </p>
+
     </div>
   `;
 
+
   try {
-    const inicio =
-      document.getElementById(
-        "payrollStartDate"
-      ).value;
 
-    const fin =
-      document.getElementById(
-        "payrollEndDate"
-      ).value;
+    /*=========================================
+      CARGAR MENSAJERO SELECCIONADO
+    =========================================*/
 
-    const resultadoMensajeros =
+    const documentoMensajero =
       await db
         .collection("messengers")
-        .where(
-          "adminId",
-          "==",
-          usuarioActual.uid
-        )
+        .doc(mensajeroId)
         .get();
+
+
+    if (!documentoMensajero.exists) {
+
+      throw new Error(
+        "No se encontró el mensajero seleccionado."
+      );
+
+    }
+
+
+    const mensajero = {
+      id: documentoMensajero.id,
+      ...documentoMensajero.data()
+    };
+
+
+    /*=========================================
+      BUSCAR SU CUENTA DE ACCESO
+    =========================================*/
+
+    const collectorUid =
+      await obtenerUidMensajeroPorEmail(
+        mensajero.email
+      );
+
+
+    /*=========================================
+      CARGAR COBROS
+    =========================================*/
 
     const resultadoCobros =
       await db
@@ -8180,265 +9632,316 @@ async function cargarPanelPagosMensajeros() {
         )
         .get();
 
-    const mensajeros =
-      await Promise.all(
-        resultadoMensajeros.docs.map(
-          async function (documento) {
-            const datos =
-              documento.data();
-
-            const collectorUid =
-              await obtenerUidMensajeroPorEmail(
-                datos.email
-              );
-
-            return {
-              id: documento.id,
-              collectorUid:
-                collectorUid,
-              ...datos
-            };
-          }
-        )
-      );
 
     const cobrosRegistrados =
       resultadoCobros.docs.map(
         function (documento) {
+
           return {
             id: documento.id,
             ...documento.data()
           };
+
         }
       );
 
-    if (!mensajeros.length) {
-      contenedor.innerHTML = `
-        <div class="empty-state">
-          <h3>No hay mensajeros registrados</h3>
+
+    /*=========================================
+      FILTRAR SOLO ESTE MENSAJERO
+    =========================================*/
+
+    const nombreMensajero =
+      String(
+        mensajero.name || ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    const cobrosDelPeriodo =
+      cobrosRegistrados.filter(
+        function (pago) {
+
+          const mismoUid =
+            Boolean(collectorUid) &&
+            pago.collectorId ===
+              collectorUid;
+
+
+          const mismoNombre =
+            nombreMensajero &&
+            String(
+              pago.collectorName || ""
+            )
+              .trim()
+              .toLowerCase() ===
+                nombreMensajero;
+
+
+          if (
+            !mismoUid &&
+            !mismoNombre
+          ) {
+            return false;
+          }
+
+
+          if (!pago.createdAt?.toDate) {
+            return false;
+          }
+
+
+          const fechaPago =
+            pago.createdAt
+              .toDate()
+              .toISOString()
+              .split("T")[0];
+
+
+          if (
+            fechaPago < inicio ||
+            fechaPago > fin
+          ) {
+            return false;
+          }
+
+
+          return true;
+
+        }
+      );
+
+
+    /*=========================================
+      TOTAL COBRADO
+    =========================================*/
+
+    const totalCobrado =
+      cobrosDelPeriodo.reduce(
+        function (total, pago) {
+
+          return (
+            total +
+            Number(pago.amount || 0)
+          );
+
+        },
+        0
+      );
+
+
+    /*=========================================
+      SUELDO / META / COMISIÓN
+    =========================================*/
+
+    const sueldo =
+      Number(
+        mensajero.salary || 0
+      );
+
+
+    const meta =
+      Number(
+        mensajero.goal || 0
+      );
+
+
+    const comisionConfigurada =
+      Number(
+        mensajero.commission || 0
+      );
+
+
+    const metaAlcanzada =
+      meta <= 0 ||
+      totalCobrado >= meta;
+
+
+    const comision =
+      metaAlcanzada
+        ? comisionConfigurada
+        : 0;
+
+
+    const faltanteMeta =
+      Math.max(
+        meta - totalCobrado,
+        0
+      );
+
+
+    const totalPagar =
+      sueldo + comision;
+
+
+    /*=========================================
+      MOSTRAR RESULTADO
+    =========================================*/
+
+    contenedor.innerHTML = `
+
+      <article class="messenger-card">
+
+        <span class="section-label">
+          Nómina del mensajero
+        </span>
+
+
+        <h3>
+          ${escaparHTML(
+            mensajero.name ||
+            mensajero.email ||
+            "Mensajero"
+          )}
+        </h3>
+
+
+        <div class="messenger-data-grid">
+
+          <div>
+
+            <span>
+              Cobrado en el mes
+            </span>
+
+            <strong>
+              ${formatoDinero.format(
+                totalCobrado
+              )}
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              Meta
+            </span>
+
+            <strong>
+              ${formatoDinero.format(
+                meta
+              )}
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              Comisión
+            </span>
+
+            <strong>
+              ${formatoDinero.format(
+                comision
+              )}
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              Sueldo
+            </span>
+
+            <strong>
+              ${formatoDinero.format(
+                sueldo
+              )}
+            </strong>
+
+          </div>
+
         </div>
-      `;
 
-      return;
-    }
 
-    contenedor.innerHTML =
-      mensajeros
-        .map(function (mensajero) {
-          const cobrosDelPeriodo =
-            cobrosRegistrados.filter(
-              function (pago) {
-                if (
-                  !mensajero.collectorUid ||
-                  pago.collectorId !==
-                    mensajero.collectorUid
-                ) {
-                  return false;
-                }
+        <p>
 
-                const fechaPago =
-                  pago.createdAt?.toDate
-                    ? pago.createdAt
-                        .toDate()
-                        .toISOString()
-                        .split("T")[0]
-                    : "";
-
-                if (
-                  inicio &&
-                  (
-                    !fechaPago ||
-                    fechaPago < inicio
-                  )
-                ) {
-                  return false;
-                }
-
-                if (
-                  fin &&
-                  (
-                    !fechaPago ||
-                    fechaPago > fin
-                  )
-                ) {
-                  return false;
-                }
-
-                return true;
-              }
-            );
-
-          const totalCobrado =
-            cobrosDelPeriodo.reduce(
-              function (total, pago) {
-                return (
-                  total +
-                  Number(pago.amount || 0)
-                );
-              },
-              0
-            );
-
-          const sueldo =
-            Number(
-              mensajero.salary || 0
-            );
-
-          const meta =
-            Number(
-              mensajero.goal || 0
-            );
-
-          const comisionConfigurada =
-            Number(
-              mensajero.commission || 0
-            );
-
-          const metaAlcanzada =
-            meta <= 0 ||
-            totalCobrado >= meta;
-
-          const comision =
+          ${
             metaAlcanzada
-              ? comisionConfigurada
-              : 0;
 
-          const faltanteMeta =
-            Math.max(
-              meta - totalCobrado,
-              0
-            );
+              ? "Meta alcanzada. La comisión fue aplicada."
 
-          const totalPagar =
-            sueldo + comision;
+              : `Faltan ${formatoDinero.format(
+                  faltanteMeta
+                )} para generar la comisión.`
+          }
 
-          return `
-            <article class="messenger-card">
+        </p>
 
-              <span class="section-label">
-                Acumulado del período
-              </span>
 
-              <h3>
-                ${escaparHTML(
-                  mensajero.name ||
-                  mensajero.email ||
-                  "Mensajero"
-                )}
-              </h3>
+        <span class="section-label">
+          Total a pagar
+        </span>
 
-              <div class="messenger-data-grid">
 
-                <div>
-                  <span>
-                    Cobrado en el mes
-                  </span>
+        <h2>
+          ${formatoDinero.format(
+            totalPagar
+          )}
+        </h2>
 
-                  <strong>
-                    ${formatoDinero.format(
-                      totalCobrado
-                    )}
-                  </strong>
-                </div>
 
-                <div>
-                  <span>
-                    Meta
-                  </span>
+        <button
+          type="button"
+          class="primary-button"
+          onclick="pagarMensajero(
+            '${mensajero.id}'
+          )"
+        >
 
-                  <strong>
-                    ${formatoDinero.format(
-                      meta
-                    )}
-                  </strong>
-                </div>
+          <i data-lucide="circle-check-big"></i>
 
-                <div>
-                  <span>
-                    Comisión generada
-                  </span>
+          Confirmar pago
 
-                  <strong>
-                    ${formatoDinero.format(
-                      comision
-                    )}
-                  </strong>
-                </div>
+        </button>
 
-                <div>
-                  <span>
-                    Sueldo fijo
-                  </span>
+      </article>
 
-                  <strong>
-                    ${formatoDinero.format(
-                      sueldo
-                    )}
-                  </strong>
-                </div>
+    `;
 
-              </div>
-
-              <p>
-                ${
-                  metaAlcanzada
-                    ? "Meta alcanzada. La comisión fue aplicada."
-                    : `Faltan ${formatoDinero.format(
-                        faltanteMeta
-                      )} para generar la comisión.`
-                }
-              </p>
-
-              <h2>
-                ${formatoDinero.format(
-                  totalPagar
-                )}
-              </h2>
-
-              <small>
-                Total de nómina a pagar
-              </small>
-
-              <button
-                type="button"
-                class="primary-button"
-                onclick="pagarMensajero(
-                  '${mensajero.id}',
-                  '${mensajero.collectorUid || ""}'
-                )"
-              >
-                Pagar mensajero
-              </button>
-
-            </article>
-          `;
-        })
-        .join("");
 
     if (window.lucide) {
       lucide.createIcons();
     }
 
-  } catch (error) {
+  }
+  catch (error) {
+
     console.error(
-      "Error calculando pagos del mensajero:",
+      "Error calculando pago del mensajero:",
       error
     );
 
+
     contenedor.innerHTML = `
+
       <div class="empty-state">
 
         <h3>
-          No se pudieron calcular los pagos
+          No se pudo calcular
         </h3>
 
         <p>
-          Revisa los mensajeros y los cobros registrados.
+          ${
+            escaparHTML(
+              error.message ||
+              "Intenta nuevamente."
+            )
+          }
         </p>
 
       </div>
+
     `;
+
   }
+
 }
 
 let historialNomina = [];

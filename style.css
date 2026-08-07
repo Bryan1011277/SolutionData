@@ -2226,29 +2226,46 @@ text-align:center;
 
 .delivery-loan-financial-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }
 
 .delivery-loan-financial-grid article {
-  padding: 16px;
+  min-width: 0;
+  min-height: 88px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  padding: 14px 15px;
+
   border: 1px solid #edf1ef;
   border-radius: 16px;
+
   background: #f8faf9;
 }
 
 .delivery-loan-financial-grid span {
   display: block;
-  margin-bottom: 7px;
+  margin-bottom: 6px;
+
   color: #667085;
-  font-size: 12px;
+
+  font-size: 11px;
   font-weight: 700;
+
+  white-space: nowrap;
 }
 
 .delivery-loan-financial-grid strong {
   color: #17211d;
-  font-size: 17px;
+
+  font-size: clamp(14px, 1.25vw, 17px);
+  font-weight: 800;
+
+  white-space: nowrap;
 }
 
 .delivery-loan-financial-grid .success-number {
